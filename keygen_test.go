@@ -68,7 +68,7 @@ func TestGenerateHMACKeyWithGenerator(t *testing.T) {
 	}
 }
 
-func TestGenerateECDSAKeyPairP256(t *testing.T) {
+func TestGenerateECDSAKeyP256(t *testing.T) {
 	key, err := GenerateECDSAKeyP256()
 	if err != nil {
 		t.Fatalf("GenerateECDSAKeyP256() error = %v", err)
@@ -78,7 +78,7 @@ func TestGenerateECDSAKeyPairP256(t *testing.T) {
 	}
 }
 
-func TestGenerateECDSAKeyPairP384(t *testing.T) {
+func TestGenerateECDSAKeyP384(t *testing.T) {
 	key, err := GenerateECDSAKeyP384()
 	if err != nil {
 		t.Fatalf("GenerateECDSAKeyP384() error = %v", err)
@@ -88,7 +88,7 @@ func TestGenerateECDSAKeyPairP384(t *testing.T) {
 	}
 }
 
-func TestGenerateECDSAKeyPairP521(t *testing.T) {
+func TestGenerateECDSAKeyP521(t *testing.T) {
 	key, err := GenerateECDSAKeyP521()
 	if err != nil {
 		t.Fatalf("GenerateECDSAKeyP521() error = %v", err)
