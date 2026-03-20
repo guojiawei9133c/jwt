@@ -28,24 +28,36 @@ go get github.com/jwt
 package main
 
 import (
+    "encoding/hex"
     "fmt"
     "github.com/jwt/pkg/jwt"
 )
 
 func main() {
-    // Generate HMAC key for HS256 (256 bits)
-    keyHex, err := jwt.GenerateHMACKey(256)
+    // Generate raw HMAC key (returns []byte)
+    key, err := jwt.GenerateHMACKey(256)  // 256 bits for HS256
+    if err != nil {
+        panic(err)
+    }
+    fmt.Println("HMAC Key (raw):", key)
+
+    // Or get hex encoded string
+    keyHex, err := jwt.GenerateHMACKeyHex(256)
     if err != nil {
         panic(err)
     }
     fmt.Println("HMAC Key (Hex):", keyHex)
 
-    // Or generate Base64 encoded key
+    // Or get Base64 encoded string
     keyBase64, err := jwt.GenerateHMACKeyBase64(256)
     if err != nil {
         panic(err)
     }
     fmt.Println("HMAC Key (Base64):", keyBase64)
+
+    // Use raw key with generator
+    gen, err := jwt.NewGenerator(jwt.HS256, key)
+    // ...
 }
 ```
 
@@ -135,8 +147,14 @@ import (
 )
 
 func main() {
+    // Generate a secure key or use existing key
+    secret, err := jwt.GenerateHMACKey(256)
+    if err != nil {
+        panic(err)
+    }
+
     // Create generator with HMAC
-    gen, err := jwt.NewGenerator(jwt.HS256, "your-secret-key")
+    gen, err := jwt.NewGenerator(jwt.HS256, secret)
     if err != nil {
         panic(err)
     }
@@ -211,6 +229,7 @@ func main() {
 package main
 
 import (
+    "encoding/hex"
     "fmt"
     "time"
     "github.com/jwt/pkg/jwt"
@@ -222,7 +241,7 @@ func main() {
     if err != nil {
         panic(err)
     }
-    fmt.Println("Generated Secret Key:", secretKey)
+    fmt.Println("Generated Secret Key (Hex):", hex.EncodeToString(secretKey))
 
     // Step 2: Create JWT generator
     gen, err := jwt.NewGenerator(jwt.HS256, secretKey)
@@ -355,6 +374,7 @@ func main() {
 package main
 
 import (
+    "encoding/hex"
     "flag"
     "fmt"
     "os"
@@ -365,6 +385,7 @@ func main() {
     keyType := flag.String("type", "hmac", "Key type: hmac or ecdsa")
     bits := flag.Int("bits", 256, "HMAC key size in bits (256/384/512)")
     curve := flag.String("curve", "P256", "ECDSA curve (P256/P384/P521)")
+    format := flag.String("format", "hex", "Output format: hex or base64 (HMAC only)")
     output := flag.String("output", "", "Output file for PEM (ECDSA only)")
     flag.Parse()
 
@@ -375,7 +396,17 @@ func main() {
             fmt.Fprintf(os.Stderr, "Error: %v\n", err)
             os.Exit(1)
         }
-        fmt.Println(key)
+
+        switch *format {
+        case "hex":
+            fmt.Println(hex.EncodeToString(key))
+        case "base64":
+            b64, _ := jwt.GenerateHMACKeyBase64(*bits)
+            fmt.Println(b64)
+        default:
+            fmt.Fprintf(os.Stderr, "Invalid format: %s\n", *format)
+            os.Exit(1)
+        }
 
     case "ecdsa":
         kp, err := jwt.GenerateECDSAKeyPair(*curve)
@@ -407,8 +438,11 @@ func main() {
 
 Run the CLI tool:
 ```bash
-# Generate HMAC key
-go run main.go -type hmac -bits 256
+# Generate HMAC key (hex format)
+go run main.go -type hmac -bits 256 -format hex
+
+# Generate HMAC key (base64 format)
+go run main.go -type hmac -bits 256 -format base64
 
 # Generate ECDSA keys
 go run main.go -type ecdsa -curve P256 -output mykey
@@ -422,10 +456,12 @@ go run main.go -type ecdsa -curve P256 -output mykey
 - `Claims`: JWT claims with standard and custom fields
 - `Token`: Represents a parsed JWT token
 - `Generator`: JWT token generator and verifier
+- `ECDSAKeyPair`: ECDSA key pair container
 
 ### Key Generation Functions
 
-- `GenerateHMACKey(bits int) (string, error)`: Generate random HMAC key (hex encoded)
+- `GenerateHMACKey(bits int) ([]byte, error)`: Generate random HMAC key (raw bytes)
+- `GenerateHMACKeyHex(bits int) (string, error)`: Generate random HMAC key (hex encoded)
 - `GenerateHMACKeyBase64(bits int) (string, error)`: Generate random HMAC key (Base64 encoded)
 - `GenerateECDSAKeyPair(curve string) (*ECDSAKeyPair, error)`: Generate ECDSA key pair (supports P256, P384, P521)
 - `(kp *ECDSAKeyPair) PrivateKeyPEM() (string, error)`: Export private key to PEM format
@@ -435,8 +471,8 @@ go run main.go -type ecdsa -curve P256 -output mykey
 
 ### Generator Functions
 
-- `NewGenerator(method SigningMethod, secret string)`: Create HMAC-based generator
-- `NewGeneratorWithECDSA(method SigningMethod, priKey *ecdsa.PrivateKey)`: Create ECDSA-based generator
+- `NewGenerator(method SigningMethod, secret []byte) (*Generator, error)`: Create HMAC-based generator
+- `NewGeneratorWithECDSA(method SigningMethod, priKey *ecdsa.PrivateKey) (*Generator, error)`: Create ECDSA-based generator
 - `(g *Generator) Generate(claims *Claims) (string, error)`: Generate a JWT token
 - `(g *Generator) Verify(token string) (*Claims, error)`: Verify and parse a JWT token
 - `(g *Generator) SetPublicKey(pubKey *ecdsa.PublicKey)`: Set public key for ECDSA verification

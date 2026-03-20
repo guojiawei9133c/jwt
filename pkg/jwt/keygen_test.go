@@ -1,7 +1,7 @@
 package jwt
 
 import (
-	"encoding/hex"
+	"encoding/base64"
 	"strings"
 	"testing"
 )
@@ -12,10 +12,10 @@ func TestGenerateHMACKey(t *testing.T) {
 		bits    int
 		wantLen int
 	}{
-		{"HS256", 256, 64},           // 32 bytes = 64 hex chars
-		{"HS384", 384, 96},           // 48 bytes = 96 hex chars
-		{"HS512", 512, 128},          // 64 bytes = 128 hex chars
-		{"Custom", 128, 32},          // 16 bytes = 32 hex chars
+		{"HS256", 256, 32},  // 32 bytes
+		{"HS384", 384, 48},  // 48 bytes
+		{"HS512", 512, 64},  // 64 bytes
+		{"Custom", 128, 16}, // 16 bytes
 	}
 
 	for _, tt := range tests {
@@ -26,11 +26,6 @@ func TestGenerateHMACKey(t *testing.T) {
 			}
 			if len(key) != tt.wantLen {
 				t.Errorf("GenerateHMACKey() len = %v, want %v", len(key), tt.wantLen)
-			}
-			// Verify it's valid hex
-			_, err = hex.DecodeString(key)
-			if err != nil {
-				t.Errorf("GenerateHMACKey() produced invalid hex: %v", err)
 			}
 		})
 	}
@@ -48,6 +43,16 @@ func TestGenerateHMACKeyInvalid(t *testing.T) {
 	}
 }
 
+func TestGenerateHMACKeyHex(t *testing.T) {
+	keyHex, err := GenerateHMACKeyHex(256)
+	if err != nil {
+		t.Fatalf("GenerateHMACKeyHex() error = %v", err)
+	}
+	if len(keyHex) != 64 { // 32 bytes = 64 hex chars
+		t.Errorf("GenerateHMACKeyHex() len = %v, want 64", len(keyHex))
+	}
+}
+
 func TestGenerateHMACKeyBase64(t *testing.T) {
 	key, err := GenerateHMACKeyBase64(256)
 	if err != nil {
@@ -56,9 +61,43 @@ func TestGenerateHMACKeyBase64(t *testing.T) {
 	if len(key) == 0 {
 		t.Error("GenerateHMACKeyBase64() returned empty string")
 	}
-	// Base64 should not contain padding since we trim it
-	if strings.ContainsAny(key, "=") {
-		t.Error("GenerateHMACKeyBase64() should not contain padding")
+	// Verify it's valid base64
+	_, err = base64.StdEncoding.DecodeString(key)
+	if err != nil {
+		t.Errorf("GenerateHMACKeyBase64() produced invalid base64: %v", err)
+	}
+}
+
+func TestGenerateHMACKeyWithGenerator(t *testing.T) {
+	// Test that generated key works with NewGenerator
+	key, err := GenerateHMACKey(256)
+	if err != nil {
+		t.Fatalf("GenerateHMACKey() error = %v", err)
+	}
+
+	gen, err := NewGenerator(HS256, key)
+	if err != nil {
+		t.Fatalf("NewGenerator() error = %v", err)
+	}
+
+	claims := &Claims{
+		Issuer:   "test",
+		Subject:  "user123",
+		ExpireAt: 9999999999,
+	}
+
+	token, err := gen.Generate(claims)
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	verifiedClaims, err := gen.Verify(token)
+	if err != nil {
+		t.Fatalf("Verify() error = %v", err)
+	}
+
+	if verifiedClaims.Subject != claims.Subject {
+		t.Errorf("Subject = %v, want %v", verifiedClaims.Subject, claims.Subject)
 	}
 }
 

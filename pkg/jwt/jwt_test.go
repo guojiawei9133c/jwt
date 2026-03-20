@@ -12,11 +12,11 @@ func TestHMACGeneration(t *testing.T) {
 	tests := []struct {
 		name   string
 		method SigningMethod
-		secret string
+		secret []byte
 	}{
-		{"HS256", HS256, "test-secret"},
-		{"HS384", HS384, "test-secret"},
-		{"HS512", HS512, "test-secret"},
+		{"HS256", HS256, []byte("test-secret")},
+		{"HS384", HS384, []byte("test-secret")},
+		{"HS512", HS512, []byte("test-secret")},
 	}
 
 	for _, tt := range tests {
@@ -94,7 +94,7 @@ func TestECDSAGeneration(t *testing.T) {
 }
 
 func TestTokenExpired(t *testing.T) {
-	gen, err := NewGenerator(HS256, "test-secret")
+	gen, err := NewGenerator(HS256, []byte("test-secret"))
 	if err != nil {
 		t.Fatalf("NewGenerator failed: %v", err)
 	}
@@ -116,8 +116,8 @@ func TestTokenExpired(t *testing.T) {
 }
 
 func TestInvalidSignature(t *testing.T) {
-	gen1, _ := NewGenerator(HS256, "secret1")
-	gen2, _ := NewGenerator(HS256, "secret2")
+	gen1, _ := NewGenerator(HS256, []byte("secret1"))
+	gen2, _ := NewGenerator(HS256, []byte("secret2"))
 
 	claims := &Claims{
 		Issuer:   "test-issuer",
@@ -136,7 +136,7 @@ func TestInvalidSignature(t *testing.T) {
 }
 
 func TestInvalidToken(t *testing.T) {
-	gen, _ := NewGenerator(HS256, "secret")
+	gen, _ := NewGenerator(HS256, []byte("secret"))
 
 	tests := []struct {
 		name  string
@@ -158,7 +158,7 @@ func TestInvalidToken(t *testing.T) {
 }
 
 func TestCustomData(t *testing.T) {
-	gen, _ := NewGenerator(HS256, "secret")
+	gen, _ := NewGenerator(HS256, []byte("secret"))
 
 	claims := &Claims{
 		ExpireAt: time.Now().Add(1 * time.Hour).Unix(),
@@ -194,14 +194,14 @@ func TestCustomData(t *testing.T) {
 }
 
 func TestInvalidKey(t *testing.T) {
-	_, err := NewGenerator(HS256, "")
+	_, err := NewGenerator(HS256, []byte(""))
 	if err != ErrInvalidKey {
 		t.Errorf("Expected ErrInvalidKey, got: %v", err)
 	}
 }
 
 func TestNotBefore(t *testing.T) {
-	gen, _ := NewGenerator(HS256, "secret")
+	gen, _ := NewGenerator(HS256, []byte("secret"))
 
 	// Token that starts in the future
 	claims := &Claims{

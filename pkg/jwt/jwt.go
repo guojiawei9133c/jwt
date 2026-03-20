@@ -63,13 +63,13 @@ type Generator struct {
 }
 
 // NewGenerator 创建 JWT 生成器 (HMAC)
-func NewGenerator(method SigningMethod, secret string) (*Generator, error) {
-	if secret == "" {
+func NewGenerator(method SigningMethod, secret []byte) (*Generator, error) {
+	if len(secret) == 0 {
 		return nil, ErrInvalidKey
 	}
 	return &Generator{
 		method: method,
-		secret: []byte(secret),
+		secret: secret,
 	}, nil
 }
 

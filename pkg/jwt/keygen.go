@@ -5,6 +5,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/pem"
 	"errors"
@@ -14,10 +15,10 @@ import (
 
 // GenerateHMACKey 生成随机 HMAC 密钥
 // bits: 密钥长度（位），建议 256/384/512 对应 HS256/HS384/HS512
-// 返回十六进制字符串形式的密钥
-func GenerateHMACKey(bits int) (string, error) {
+// 返回原始字节数组
+func GenerateHMACKey(bits int) ([]byte, error) {
 	if bits <= 0 {
-		return "", errors.New("invalid key size")
+		return nil, errors.New("invalid key size")
 	}
 
 	bytes := bits / 8
@@ -27,30 +28,28 @@ func GenerateHMACKey(bits int) (string, error) {
 
 	key := make([]byte, bytes)
 	if _, err := rand.Read(key); err != nil {
-		return "", fmt.Errorf("failed to generate random key: %w", err)
+		return nil, fmt.Errorf("failed to generate random key: %w", err)
 	}
 
+	return key, nil
+}
+
+// GenerateHMACKeyHex 生成随机 HMAC 密钥（十六进制编码）
+func GenerateHMACKeyHex(bits int) (string, error) {
+	key, err := GenerateHMACKey(bits)
+	if err != nil {
+		return "", err
+	}
 	return hex.EncodeToString(key), nil
 }
 
 // GenerateHMACKeyBase64 生成随机 HMAC 密钥（Base64 编码）
 func GenerateHMACKeyBase64(bits int) (string, error) {
-	if bits <= 0 {
-		return "", errors.New("invalid key size")
+	key, err := GenerateHMACKey(bits)
+	if err != nil {
+		return "", err
 	}
-
-	bytes := bits / 8
-	if bits%8 != 0 {
-		bytes++
-	}
-
-	key := make([]byte, bytes)
-	if _, err := rand.Read(key); err != nil {
-		return "", fmt.Errorf("failed to generate random key: %w", err)
-	}
-
-	// 使用标准 Base64（不是 URL Safe），便于用户使用
-	return encodeBase64(key), nil
+	return base64.StdEncoding.EncodeToString(key), nil
 }
 
 // ECDSAKeyPair ECDSA 密钥对
@@ -165,45 +164,4 @@ func ParsePublicKeyFromPEM(pemData []byte) (*ecdsa.PublicKey, error) {
 	}
 
 	return ecdsaKey, nil
-}
-
-func encodeBase64(data []byte) string {
-	return strings.TrimRight(encodeBase64Std(data), "=")
-}
-
-func encodeBase64Std(data []byte) string {
-	const base64Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
-
-	n := len(data)
-	output := make([]byte, 0, (n*8+5)/6)
-
-	for i := 0; i < n; i += 3 {
-		var val uint32
-
-		switch {
-		case i+2 < n:
-			val = uint32(data[i])<<16 | uint32(data[i+1])<<8 | uint32(data[i+2])
-			output = append(output,
-				base64Chars[val>>18],
-				base64Chars[(val>>12)&63],
-				base64Chars[(val>>6)&63],
-				base64Chars[val&63],
-			)
-		case i+1 < n:
-			val = uint32(data[i])<<16 | uint32(data[i+1])<<8
-			output = append(output,
-				base64Chars[val>>18],
-				base64Chars[(val>>12)&63],
-				base64Chars[(val>>6)&63],
-			)
-		default:
-			val = uint32(data[i]) << 16
-			output = append(output,
-				base64Chars[val>>18],
-				base64Chars[(val>>12)&63],
-			)
-		}
-	}
-
-	return string(output)
 }

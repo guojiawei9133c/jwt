@@ -24,7 +24,13 @@ func main() {
 func hmacExample() {
 	fmt.Println("--- HMAC Signing (HS256) ---")
 
-	gen, err := jwt.NewGenerator(jwt.HS256, "my-secret-key")
+	// Generate a secure HMAC key
+	secret, err := jwt.GenerateHMACKey(256)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	gen, err := jwt.NewGenerator(jwt.HS256, secret)
 	if err != nil {
 		log.Fatal(err)
 	}
