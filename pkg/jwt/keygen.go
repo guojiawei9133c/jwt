@@ -11,19 +11,25 @@ import (
 	"strings"
 )
 
+const (
+	hmacKeySize256 = 32 // 256 bits for HS256
+	hmacKeySize384 = 48 // 384 bits for HS384
+	hmacKeySize512 = 64 // 512 bits for HS512
+)
+
 // GenerateHMACKey256 生成 256 位 HMAC 密钥 (用于 HS256)
 func GenerateHMACKey256() ([]byte, error) {
-	return generateHMACKey(32)
+	return generateHMACKey(hmacKeySize256)
 }
 
 // GenerateHMACKey384 生成 384 位 HMAC 密钥 (用于 HS384)
 func GenerateHMACKey384() ([]byte, error) {
-	return generateHMACKey(48)
+	return generateHMACKey(hmacKeySize384)
 }
 
 // GenerateHMACKey512 生成 512 位 HMAC 密钥 (用于 HS512)
 func GenerateHMACKey512() ([]byte, error) {
-	return generateHMACKey(64)
+	return generateHMACKey(hmacKeySize512)
 }
 
 func generateHMACKey(bytes int) ([]byte, error) {
