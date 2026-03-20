@@ -68,6 +68,78 @@ func TestGenerateHMACKeyWithGenerator(t *testing.T) {
 	}
 }
 
+func TestGenerateECDSAKeyPairP256(t *testing.T) {
+	kp, err := GenerateECDSAKeyPairP256()
+	if err != nil {
+		t.Fatalf("GenerateECDSAKeyPairP256() error = %v", err)
+	}
+	if kp.PrivateKey == nil {
+		t.Error("PrivateKey is nil")
+	}
+	if kp.PublicKey == nil {
+		t.Error("PublicKey is nil")
+	}
+}
+
+func TestGenerateECDSAKeyPairP384(t *testing.T) {
+	kp, err := GenerateECDSAKeyPairP384()
+	if err != nil {
+		t.Fatalf("GenerateECDSAKeyPairP384() error = %v", err)
+	}
+	if kp.PrivateKey == nil {
+		t.Error("PrivateKey is nil")
+	}
+	if kp.PublicKey == nil {
+		t.Error("PublicKey is nil")
+	}
+}
+
+func TestGenerateECDSAKeyPairP521(t *testing.T) {
+	kp, err := GenerateECDSAKeyPairP521()
+	if err != nil {
+		t.Fatalf("GenerateECDSAKeyPairP521() error = %v", err)
+	}
+	if kp.PrivateKey == nil {
+		t.Error("PrivateKey is nil")
+	}
+	if kp.PublicKey == nil {
+		t.Error("PublicKey is nil")
+	}
+}
+
+func TestGenerateECDSAKeyPairWithGenerator(t *testing.T) {
+	kp, err := GenerateECDSAKeyPairP256()
+	if err != nil {
+		t.Fatalf("GenerateECDSAKeyPairP256() error = %v", err)
+	}
+
+	gen, err := NewGeneratorWithECDSA(ES256, kp.PrivateKey)
+	if err != nil {
+		t.Fatalf("NewGeneratorWithECDSA() error = %v", err)
+	}
+	gen.SetPublicKey(kp.PublicKey)
+
+	claims := &Claims{
+		Issuer:   "test",
+		Subject:  "user123",
+		ExpireAt: 9999999999,
+	}
+
+	token, err := gen.Generate(claims)
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	verifiedClaims, err := gen.Verify(token)
+	if err != nil {
+		t.Fatalf("Verify() error = %v", err)
+	}
+
+	if verifiedClaims.Subject != claims.Subject {
+		t.Errorf("Subject = %v, want %v", verifiedClaims.Subject, claims.Subject)
+	}
+}
+
 func TestGenerateECDSAKeyPair(t *testing.T) {
 	curves := []string{"P256", "P384", "P521"}
 

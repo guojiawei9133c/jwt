@@ -15,6 +15,10 @@ const (
 	hmacKeySize256 = 32 // 256 bits for HS256
 	hmacKeySize384 = 48 // 384 bits for HS384
 	hmacKeySize512 = 64 // 512 bits for HS512
+
+	curveP256 = "P256"
+	curveP384 = "P384"
+	curveP521 = "P521"
 )
 
 // GenerateHMACKey256 生成 256 位 HMAC 密钥 (用于 HS256)
@@ -48,15 +52,35 @@ type ECDSAKeyPair struct {
 
 // GenerateECDSAKeyPair 生成 ECDSA 密钥对
 // curve: 椭圆曲线类型，支持 "P256", "P384", "P521"
+// Deprecated: 使用 GenerateECDSAKeyPairP256/P384/P521 代替
 func GenerateECDSAKeyPair(curve string) (*ECDSAKeyPair, error) {
+	return generateECDSAKeyPair(curve)
+}
+
+// GenerateECDSAKeyPairP256 生成 P256 曲线 ECDSA 密钥对 (用于 ES256)
+func GenerateECDSAKeyPairP256() (*ECDSAKeyPair, error) {
+	return generateECDSAKeyPair(curveP256)
+}
+
+// GenerateECDSAKeyPairP384 生成 P384 曲线 ECDSA 密钥对 (用于 ES384)
+func GenerateECDSAKeyPairP384() (*ECDSAKeyPair, error) {
+	return generateECDSAKeyPair(curveP384)
+}
+
+// GenerateECDSAKeyPairP521 生成 P521 曲线 ECDSA 密钥对 (用于 ES521)
+func GenerateECDSAKeyPairP521() (*ECDSAKeyPair, error) {
+	return generateECDSAKeyPair(curveP521)
+}
+
+func generateECDSAKeyPair(curve string) (*ECDSAKeyPair, error) {
 	var c elliptic.Curve
 
 	switch strings.ToUpper(curve) {
-	case "P256":
+	case curveP256:
 		c = elliptic.P256()
-	case "P384":
+	case curveP384:
 		c = elliptic.P384()
-	case "P521":
+	case curveP521:
 		c = elliptic.P521()
 	default:
 		return nil, fmt.Errorf("unsupported curve: %s (supported: P256, P384, P521)", curve)
