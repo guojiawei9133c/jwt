@@ -11,24 +11,26 @@ import (
 	"strings"
 )
 
-// GenerateHMACKey 生成随机 HMAC 密钥
-// bits: 密钥长度（位），建议 256/384/512 对应 HS256/HS384/HS512
-// 返回原始字节数组
-func GenerateHMACKey(bits int) ([]byte, error) {
-	if bits <= 0 {
-		return nil, errors.New("invalid key size")
-	}
+// GenerateHMACKey256 生成 256 位 HMAC 密钥 (用于 HS256)
+func GenerateHMACKey256() ([]byte, error) {
+	return generateHMACKey(32)
+}
 
-	bytes := bits / 8
-	if bits%8 != 0 {
-		bytes++
-	}
+// GenerateHMACKey384 生成 384 位 HMAC 密钥 (用于 HS384)
+func GenerateHMACKey384() ([]byte, error) {
+	return generateHMACKey(48)
+}
 
+// GenerateHMACKey512 生成 512 位 HMAC 密钥 (用于 HS512)
+func GenerateHMACKey512() ([]byte, error) {
+	return generateHMACKey(64)
+}
+
+func generateHMACKey(bytes int) ([]byte, error) {
 	key := make([]byte, bytes)
 	if _, err := rand.Read(key); err != nil {
 		return nil, fmt.Errorf("failed to generate random key: %w", err)
 	}
-
 	return key, nil
 }
 

@@ -34,22 +34,34 @@ import (
 )
 
 func main() {
-    // Generate HMAC key (returns []byte)
-    key, err := jwt.GenerateHMACKey(256)  // 256 bits for HS256
+    // Generate HMAC key for HS256
+    key256, err := jwt.GenerateHMACKey256()
+    if err != nil {
+        panic(err)
+    }
+
+    // Generate HMAC key for HS384
+    key384, err := jwt.GenerateHMACKey384()
+    if err != nil {
+        panic(err)
+    }
+
+    // Generate HMAC key for HS512
+    key512, err := jwt.GenerateHMACKey512()
     if err != nil {
         panic(err)
     }
 
     // Use directly with generator
-    gen, err := jwt.NewGenerator(jwt.HS256, key)
+    gen, err := jwt.NewGenerator(jwt.HS256, key256)
     // ...
 
     // For storage/display, encode as needed
-    keyHex := hex.EncodeToString(key)
+    keyHex := hex.EncodeToString(key256)
     fmt.Println("HMAC Key (Hex):", keyHex)
 
     // Or base64
-    // keyBase64 := base64.StdEncoding.EncodeToString(key)
+    // keyBase64 := base64.StdEncoding.EncodeToString(key256)
 }
 ```
 
@@ -229,7 +241,7 @@ import (
 
 func main() {
     // Step 1: Generate a secure HMAC key
-    secretKey, err := jwt.GenerateHMACKey(256)
+    secretKey, err := jwt.GenerateHMACKey256()
     if err != nil {
         panic(err)
     }
@@ -376,7 +388,7 @@ import (
 
 func main() {
     keyType := flag.String("type", "hmac", "Key type: hmac or ecdsa")
-    bits := flag.Int("bits", 256, "HMAC key size in bits (256/384/512)")
+    size := flag.String("size", "256", "HMAC key size: 256/384/512")
     curve := flag.String("curve", "P256", "ECDSA curve (P256/P384/P521)")
     format := flag.String("format", "hex", "Output format: hex or base64 (HMAC only)")
     output := flag.String("output", "", "Output file for PEM (ECDSA only)")
@@ -384,7 +396,21 @@ func main() {
 
     switch *keyType {
     case "hmac":
-        key, err := jwt.GenerateHMACKey(*bits)
+        var key []byte
+        var err error
+
+        switch *size {
+        case "256":
+            key, err = jwt.GenerateHMACKey256()
+        case "384":
+            key, err = jwt.GenerateHMACKey384()
+        case "512":
+            key, err = jwt.GenerateHMACKey512()
+        default:
+            fmt.Fprintf(os.Stderr, "Invalid size: %s (use 256/384/512)\n", *size)
+            os.Exit(1)
+        }
+
         if err != nil {
             fmt.Fprintf(os.Stderr, "Error: %v\n", err)
             os.Exit(1)
@@ -430,11 +456,14 @@ func main() {
 
 Run the CLI tool:
 ```bash
-# Generate HMAC key (hex format)
-go run main.go -type hmac -bits 256 -format hex
+# Generate HMAC key (256 bits)
+go run main.go -type hmac -size 256
 
-# Generate HMAC key (base64 format)
-go run main.go -type hmac -bits 256 -format base64
+# Generate HMAC key (384 bits)
+go run main.go -type hmac -size 384
+
+# Generate HMAC key (512 bits)
+go run main.go -type hmac -size 512
 
 # Generate ECDSA keys
 go run main.go -type ecdsa -curve P256 -output mykey
@@ -452,7 +481,9 @@ go run main.go -type ecdsa -curve P256 -output mykey
 
 ### Key Generation Functions
 
-- `GenerateHMACKey(bits int) ([]byte, error)`: Generate random HMAC key (raw bytes)
+- `GenerateHMACKey256() ([]byte, error)`: Generate 256-bit HMAC key (for HS256)
+- `GenerateHMACKey384() ([]byte, error)`: Generate 384-bit HMAC key (for HS384)
+- `GenerateHMACKey512() ([]byte, error)`: Generate 512-bit HMAC key (for HS512)
 - `GenerateECDSAKeyPair(curve string) (*ECDSAKeyPair, error)`: Generate ECDSA key pair (supports P256, P384, P521)
 - `(kp *ECDSAKeyPair) PrivateKeyPEM() (string, error)`: Export private key to PEM format
 - `(kp *ECDSAKeyPair) PublicKeyPEM() (string, error)`: Export public key to PEM format

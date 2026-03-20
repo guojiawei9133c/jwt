@@ -5,51 +5,44 @@ import (
 	"testing"
 )
 
-func TestGenerateHMACKey(t *testing.T) {
-	tests := []struct {
-		name    string
-		bits    int
-		wantLen int
-	}{
-		{"HS256", 256, 32},  // 32 bytes
-		{"HS384", 384, 48},  // 48 bytes
-		{"HS512", 512, 64},  // 64 bytes
-		{"Custom", 128, 16}, // 16 bytes
+func TestGenerateHMACKey256(t *testing.T) {
+	key, err := GenerateHMACKey256()
+	if err != nil {
+		t.Fatalf("GenerateHMACKey256() error = %v", err)
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			key, err := GenerateHMACKey(tt.bits)
-			if err != nil {
-				t.Fatalf("GenerateHMACKey() error = %v", err)
-			}
-			if len(key) != tt.wantLen {
-				t.Errorf("GenerateHMACKey() len = %v, want %v", len(key), tt.wantLen)
-			}
-		})
+	if len(key) != 32 {
+		t.Errorf("GenerateHMACKey256() len = %v, want 32", len(key))
 	}
 }
 
-func TestGenerateHMACKeyInvalid(t *testing.T) {
-	_, err := GenerateHMACKey(-1)
-	if err == nil {
-		t.Error("GenerateHMACKey() with negative bits should return error")
+func TestGenerateHMACKey384(t *testing.T) {
+	key, err := GenerateHMACKey384()
+	if err != nil {
+		t.Fatalf("GenerateHMACKey384() error = %v", err)
 	}
+	if len(key) != 48 {
+		t.Errorf("GenerateHMACKey384() len = %v, want 48", len(key))
+	}
+}
 
-	_, err = GenerateHMACKey(0)
-	if err == nil {
-		t.Error("GenerateHMACKey() with 0 bits should return error")
+func TestGenerateHMACKey512(t *testing.T) {
+	key, err := GenerateHMACKey512()
+	if err != nil {
+		t.Fatalf("GenerateHMACKey512() error = %v", err)
+	}
+	if len(key) != 64 {
+		t.Errorf("GenerateHMACKey512() len = %v, want 64", len(key))
 	}
 }
 
 func TestGenerateHMACKeyWithGenerator(t *testing.T) {
-	// Test that generated key works with NewGenerator
-	key, err := GenerateHMACKey(256)
+	// Test HS256
+	key256, err := GenerateHMACKey256()
 	if err != nil {
-		t.Fatalf("GenerateHMACKey() error = %v", err)
+		t.Fatalf("GenerateHMACKey256() error = %v", err)
 	}
 
-	gen, err := NewGenerator(HS256, key)
+	gen, err := NewGenerator(HS256, key256)
 	if err != nil {
 		t.Fatalf("NewGenerator() error = %v", err)
 	}
