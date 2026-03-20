@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/jwt/pkg/jwt"
+	"github.com/guojiawei9133c/jwt/pkg/jwt"
 )
 
 func main() {

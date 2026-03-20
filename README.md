@@ -15,7 +15,7 @@ A simple and lightweight JWT (JSON Web Token) library for Go.
 ## Installation
 
 ```bash
-go get github.com/jwt
+go get github.com/guojiawei9133c/jwt
 ```
 
 ## Key Generation
@@ -30,7 +30,7 @@ package main
 import (
     "encoding/hex"
     "fmt"
-    "github.com/jwt/pkg/jwt"
+    "github.com/guojiawei9133c/jwt/pkg/jwt"
 )
 
 func main() {
@@ -72,7 +72,7 @@ package main
 
 import (
     "fmt"
-    "github.com/jwt/pkg/jwt"
+    "github.com/guojiawei9133c/jwt/pkg/jwt"
 )
 
 func main() {
@@ -108,7 +108,7 @@ package main
 
 import (
     "os"
-    "github.com/jwt/pkg/jwt"
+    "github.com/guojiawei9133c/jwt/pkg/jwt"
 )
 
 func main() {
@@ -147,7 +147,7 @@ package main
 import (
     "fmt"
     "time"
-    "github.com/jwt/pkg/jwt"
+    "github.com/guojiawei9133c/jwt/pkg/jwt"
 )
 
 func main() {
@@ -197,7 +197,7 @@ func main() {
 package main
 
 import (
-    "github.com/jwt/pkg/jwt"
+    "github.com/guojiawei9133c/jwt/pkg/jwt"
 )
 
 func main() {
@@ -233,7 +233,7 @@ import (
     "encoding/hex"
     "fmt"
     "time"
-    "github.com/jwt/pkg/jwt"
+    "github.com/guojiawei9133c/jwt/pkg/jwt"
 )
 
 func main() {
@@ -291,7 +291,7 @@ import (
     "fmt"
     "os"
     "time"
-    "github.com/jwt/pkg/jwt"
+    "github.com/guojiawei9133c/jwt/pkg/jwt"
 )
 
 func main() {
@@ -380,7 +380,7 @@ import (
     "flag"
     "fmt"
     "os"
-    "github.com/jwt/pkg/jwt"
+    "github.com/guojiawei9133c/jwt/pkg/jwt"
 )
 
 func main() {
