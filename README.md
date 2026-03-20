@@ -76,20 +76,20 @@ import (
 )
 
 func main() {
-    // Generate ECDSA key pair (P256 for ES256)
-    kp, err := jwt.GenerateECDSAKeyPair("P256")
+    // Generate ECDSA key (P256 for ES256)
+    priKey, err := jwt.GenerateECDSAKeyP256()
     if err != nil {
         panic(err)
     }
 
     // Export to PEM format
-    privPEM, err := kp.PrivateKeyPEM()
+    privPEM, err := jwt.ExportPrivateKeyPEM(priKey)
     if err != nil {
         panic(err)
     }
     fmt.Println("Private Key:\n", privPEM)
 
-    pubPEM, err := kp.PublicKeyPEM()
+    pubPEM, err := jwt.ExportPublicKeyPEM(&priKey.PublicKey)
     if err != nil {
         panic(err)
     }
@@ -298,19 +298,19 @@ import (
 )
 
 func main() {
-    // Step 1: Generate ECDSA key pair
-    kp, err := jwt.GenerateECDSAKeyPair("P256")
+    // Step 1: Generate ECDSA key
+    priKey, err := jwt.GenerateECDSAKeyP256()
     if err != nil {
         panic(err)
     }
 
     // Step 2: Export keys to PEM format
-    privPEM, err := kp.PrivateKeyPEM()
+    privPEM, err := jwt.ExportPrivateKeyPEM(priKey)
     if err != nil {
         panic(err)
     }
 
-    pubPEM, err := kp.PublicKeyPEM()
+    pubPEM, err := jwt.ExportPublicKeyPEM(&priKey.PublicKey)
     if err != nil {
         panic(err)
     }
@@ -324,7 +324,7 @@ func main() {
     privData, _ := os.ReadFile("private.pem")
     pubData, _ := os.ReadFile("public.pem")
 
-    priKey, err := jwt.ParseECDSAFromPEM(privData)
+    loadedPriKey, err := jwt.ParseECDSAFromPEM(privData)
     if err != nil {
         panic(err)
     }
@@ -335,7 +335,7 @@ func main() {
     }
 
     // Step 5: Create JWT generator with loaded keys
-    gen, err := jwt.NewGeneratorWithECDSA(jwt.ES256, priKey)
+    gen, err := jwt.NewGeneratorWithECDSA(jwt.ES256, loadedPriKey)
     if err != nil {
         panic(err)
     }
@@ -427,14 +427,28 @@ func main() {
         }
 
     case "ecdsa":
-        kp, err := jwt.GenerateECDSAKeyPair(*curve)
+        var priKey *ecdsa.PrivateKey
+        var err error
+
+        switch *curve {
+        case "P256":
+            priKey, err = jwt.GenerateECDSAKeyP256()
+        case "P384":
+            priKey, err = jwt.GenerateECDSAKeyP384()
+        case "P521":
+            priKey, err = jwt.GenerateECDSAKeyP521()
+        default:
+            fmt.Fprintf(os.Stderr, "Invalid curve: %s (use P256/P384/P521)\n", *curve)
+            os.Exit(1)
+        }
+
         if err != nil {
             fmt.Fprintf(os.Stderr, "Error: %v\n", err)
             os.Exit(1)
         }
 
-        privPEM, _ := kp.PrivateKeyPEM()
-        pubPEM, _ := kp.PublicKeyPEM()
+        privPEM, _ := jwt.ExportPrivateKeyPEM(priKey)
+        pubPEM, _ := jwt.ExportPublicKeyPEM(&priKey.PublicKey)
 
         if *output != "" {
             os.WriteFile(*output+".pem", []byte(privPEM), 0600)
@@ -477,17 +491,19 @@ go run main.go -type ecdsa -curve P256 -output mykey
 - `Claims`: JWT claims with standard and custom fields
 - `Token`: Represents a parsed JWT token
 - `Generator`: JWT token generator and verifier
-- `ECDSAKeyPair`: ECDSA key pair container
 
 ### Key Generation Functions
 
 - `GenerateHMACKey256() ([]byte, error)`: Generate 256-bit HMAC key (for HS256)
 - `GenerateHMACKey384() ([]byte, error)`: Generate 384-bit HMAC key (for HS384)
 - `GenerateHMACKey512() ([]byte, error)`: Generate 512-bit HMAC key (for HS512)
-- `GenerateECDSAKeyPair(curve string) (*ECDSAKeyPair, error)`: Generate ECDSA key pair (supports P256, P384, P521)
-- `(kp *ECDSAKeyPair) PrivateKeyPEM() (string, error)`: Export private key to PEM format
-- `(kp *ECDSAKeyPair) PublicKeyPEM() (string, error)`: Export public key to PEM format
+- `GenerateECDSAKeyP256() (*ecdsa.PrivateKey, error)`: Generate P256 ECDSA key (for ES256)
+- `GenerateECDSAKeyP384() (*ecdsa.PrivateKey, error)`: Generate P384 ECDSA key (for ES384)
+- `GenerateECDSAKeyP521() (*ecdsa.PrivateKey, error)`: Generate P521 ECDSA key (for ES521)
+- `ExportPrivateKeyPEM(key *ecdsa.PrivateKey) (string, error)`: Export ECDSA private key to PEM format
+- `ExportPublicKeyPEM(key *ecdsa.PublicKey) (string, error)`: Export ECDSA public key to PEM format
 - `ParseECDSAFromPEM(pemData []byte) (*ecdsa.PrivateKey, error)`: Parse ECDSA private key from PEM
+- `ParsePublicKeyFromPEM(pemData []byte) (*ecdsa.PublicKey, error)`: Parse public key from PEM
 - `ParsePublicKeyFromPEM(pemData []byte) (*ecdsa.PublicKey, error)`: Parse public key from PEM
 
 ### Generator Functions

@@ -39,55 +39,40 @@ func generateHMACKey(bytes int) ([]byte, error) {
 	return key, nil
 }
 
-// ECDSAKeyPair ECDSA 密钥对
-type ECDSAKeyPair struct {
-	PrivateKey *ecdsa.PrivateKey
-	PublicKey  *ecdsa.PublicKey
-}
-
-// GenerateECDSAKeyPairP256 生成 P256 曲线 ECDSA 密钥对 (用于 ES256)
-func GenerateECDSAKeyPairP256() (*ECDSAKeyPair, error) {
+// GenerateECDSAKeyP256 生成 P256 曲线 ECDSA 私钥 (用于 ES256)
+func GenerateECDSAKeyP256() (*ecdsa.PrivateKey, error) {
 	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate ECDSA key pair: %w", err)
+		return nil, fmt.Errorf("failed to generate ECDSA key: %w", err)
 	}
-	return &ECDSAKeyPair{
-		PrivateKey: privateKey,
-		PublicKey:  &privateKey.PublicKey,
-	}, nil
+	return privateKey, nil
 }
 
-// GenerateECDSAKeyPairP384 生成 P384 曲线 ECDSA 密钥对 (用于 ES384)
-func GenerateECDSAKeyPairP384() (*ECDSAKeyPair, error) {
+// GenerateECDSAKeyP384 生成 P384 曲线 ECDSA 私钥 (用于 ES384)
+func GenerateECDSAKeyP384() (*ecdsa.PrivateKey, error) {
 	privateKey, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate ECDSA key pair: %w", err)
+		return nil, fmt.Errorf("failed to generate ECDSA key: %w", err)
 	}
-	return &ECDSAKeyPair{
-		PrivateKey: privateKey,
-		PublicKey:  &privateKey.PublicKey,
-	}, nil
+	return privateKey, nil
 }
 
-// GenerateECDSAKeyPairP521 生成 P521 曲线 ECDSA 密钥对 (用于 ES521)
-func GenerateECDSAKeyPairP521() (*ECDSAKeyPair, error) {
+// GenerateECDSAKeyP521 生成 P521 曲线 ECDSA 私钥 (用于 ES521)
+func GenerateECDSAKeyP521() (*ecdsa.PrivateKey, error) {
 	privateKey, err := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate ECDSA key pair: %w", err)
+		return nil, fmt.Errorf("failed to generate ECDSA key: %w", err)
 	}
-	return &ECDSAKeyPair{
-		PrivateKey: privateKey,
-		PublicKey:  &privateKey.PublicKey,
-	}, nil
+	return privateKey, nil
 }
 
-// PrivateKeyPEM 将私钥编码为 PEM 格式
-func (kp *ECDSAKeyPair) PrivateKeyPEM() (string, error) {
-	if kp.PrivateKey == nil {
+// ExportPrivateKeyPEM 将 ECDSA 私钥导出为 PEM 格式
+func ExportPrivateKeyPEM(key *ecdsa.PrivateKey) (string, error) {
+	if key == nil {
 		return "", errors.New("private key is nil")
 	}
 
-	derBytes, err := x509.MarshalECPrivateKey(kp.PrivateKey)
+	derBytes, err := x509.MarshalECPrivateKey(key)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal private key: %w", err)
 	}
@@ -100,13 +85,13 @@ func (kp *ECDSAKeyPair) PrivateKeyPEM() (string, error) {
 	return string(pem.EncodeToMemory(block)), nil
 }
 
-// PublicKeyPEM 将公钥编码为 PEM 格式
-func (kp *ECDSAKeyPair) PublicKeyPEM() (string, error) {
-	if kp.PublicKey == nil {
+// ExportPublicKeyPEM 将 ECDSA 公钥导出为 PEM 格式
+func ExportPublicKeyPEM(key *ecdsa.PublicKey) (string, error) {
+	if key == nil {
 		return "", errors.New("public key is nil")
 	}
 
-	derBytes, err := x509.MarshalPKIXPublicKey(kp.PublicKey)
+	derBytes, err := x509.MarshalPKIXPublicKey(key)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal public key: %w", err)
 	}

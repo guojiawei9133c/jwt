@@ -69,55 +69,46 @@ func TestGenerateHMACKeyWithGenerator(t *testing.T) {
 }
 
 func TestGenerateECDSAKeyPairP256(t *testing.T) {
-	kp, err := GenerateECDSAKeyPairP256()
+	key, err := GenerateECDSAKeyP256()
 	if err != nil {
-		t.Fatalf("GenerateECDSAKeyPairP256() error = %v", err)
+		t.Fatalf("GenerateECDSAKeyP256() error = %v", err)
 	}
-	if kp.PrivateKey == nil {
+	if key == nil {
 		t.Error("PrivateKey is nil")
-	}
-	if kp.PublicKey == nil {
-		t.Error("PublicKey is nil")
 	}
 }
 
 func TestGenerateECDSAKeyPairP384(t *testing.T) {
-	kp, err := GenerateECDSAKeyPairP384()
+	key, err := GenerateECDSAKeyP384()
 	if err != nil {
-		t.Fatalf("GenerateECDSAKeyPairP384() error = %v", err)
+		t.Fatalf("GenerateECDSAKeyP384() error = %v", err)
 	}
-	if kp.PrivateKey == nil {
+	if key == nil {
 		t.Error("PrivateKey is nil")
-	}
-	if kp.PublicKey == nil {
-		t.Error("PublicKey is nil")
 	}
 }
 
 func TestGenerateECDSAKeyPairP521(t *testing.T) {
-	kp, err := GenerateECDSAKeyPairP521()
+	key, err := GenerateECDSAKeyP521()
 	if err != nil {
-		t.Fatalf("GenerateECDSAKeyPairP521() error = %v", err)
+		t.Fatalf("GenerateECDSAKeyP521() error = %v", err)
 	}
-	if kp.PrivateKey == nil {
+	if key == nil {
 		t.Error("PrivateKey is nil")
-	}
-	if kp.PublicKey == nil {
-		t.Error("PublicKey is nil")
 	}
 }
 
-func TestGenerateECDSAKeyPairWithGenerator(t *testing.T) {
-	kp, err := GenerateECDSAKeyPairP256()
+func TestGenerateECDSAKeyWithGenerator(t *testing.T) {
+	key, err := GenerateECDSAKeyP256()
 	if err != nil {
-		t.Fatalf("GenerateECDSAKeyPairP256() error = %v", err)
+		t.Fatalf("GenerateECDSAKeyP256() error = %v", err)
 	}
 
-	gen, err := NewGeneratorWithECDSA(ES256, kp.PrivateKey)
+	gen, err := NewGeneratorWithECDSA(ES256, key)
 	if err != nil {
 		t.Fatalf("NewGeneratorWithECDSA() error = %v", err)
 	}
-	gen.SetPublicKey(kp.PublicKey)
+	gen.SetPublicKey(&key.PublicKey)
 
 	claims := &Claims{
 		Issuer:   "test",
@@ -140,44 +131,74 @@ func TestGenerateECDSAKeyPairWithGenerator(t *testing.T) {
 	}
 }
 
+func TestExportPrivateKeyPEM(t *testing.T) {
+	key, err := GenerateECDSAKeyP256()
+	if err != nil {
+		t.Fatalf("GenerateECDSAKeyP256() error = %v", err)
+	}
+
+	privPEM, err := ExportPrivateKeyPEM(key)
+	if err != nil {
+		t.Fatalf("ExportPrivateKeyPEM() error = %v", err)
+	}
+	if !strings.Contains(privPEM, "EC PRIVATE KEY") {
+		t.Error("ExportPrivateKeyPEM() missing EC PRIVATE KEY header")
+	}
+}
+
+func TestExportPublicKeyPEM(t *testing.T) {
+	key, err := GenerateECDSAKeyP256()
+	if err != nil {
+		t.Fatalf("GenerateECDSAKeyP256() error = %v", err)
+	}
+
+	pubPEM, err := ExportPublicKeyPEM(&key.PublicKey)
+	if err != nil {
+		t.Fatalf("ExportPublicKeyPEM() error = %v", err)
+	}
+	if !strings.Contains(pubPEM, "PUBLIC KEY") {
+		t.Error("ExportPublicKeyPEM() missing PUBLIC KEY header")
+	}
+}
+
 func TestGenerateECDSAKeyPair(t *testing.T) {
-	// This test is covered by TestGenerateECDSAKeyPairP256/P384/P521
+	// Tests covered by TestGenerateECDSAKeyP256/P384/P521
 }
 
 func TestECDSAKeyPairPEM(t *testing.T) {
-	kp, err := GenerateECDSAKeyPairP256()
+	key, err := GenerateECDSAKeyP256()
 	if err != nil {
-		t.Fatalf("GenerateECDSAKeyPair() error = %v", err)
+		t.Fatalf("GenerateECDSAKeyP256() error = %v", err)
 	}
 
 	// Test Private Key PEM
-	privPEM, err := kp.PrivateKeyPEM()
+	privPEM, err := ExportPrivateKeyPEM(key)
 	if err != nil {
-		t.Fatalf("PrivateKeyPEM() error = %v", err)
+		t.Fatalf("ExportPrivateKeyPEM() error = %v", err)
 	}
 	if !strings.Contains(privPEM, "EC PRIVATE KEY") {
-		t.Error("PrivateKeyPEM() missing EC PRIVATE KEY header")
+		t.Error("ExportPrivateKeyPEM() missing EC PRIVATE KEY header")
 	}
 
 	// Test Public Key PEM
-	pubPEM, err := kp.PublicKeyPEM()
+	pubPEM, err := ExportPublicKeyPEM(&key.PublicKey)
 	if err != nil {
-		t.Fatalf("PublicKeyPEM() error = %v", err)
+		t.Fatalf("ExportPublicKeyPEM() error = %v", err)
 	}
 	if !strings.Contains(pubPEM, "PUBLIC KEY") {
-		t.Error("PublicKeyPEM() missing PUBLIC KEY header")
+		t.Error("ExportPublicKeyPEM() missing PUBLIC KEY header")
 	}
 }
 
 func TestParseECDSAFromPEM(t *testing.T) {
-	kp1, err := GenerateECDSAKeyPairP256()
+	key, err := GenerateECDSAKeyP256()
 	if err != nil {
-		t.Fatalf("GenerateECDSAKeyPairP256() error = %v", err)
+		t.Fatalf("GenerateECDSAKeyP256() error = %v", err)
 	}
 
-	privPEM, err := kp1.PrivateKeyPEM()
+	privPEM, err := ExportPrivateKeyPEM(key)
 	if err != nil {
-		t.Fatalf("PrivateKeyPEM() error = %v", err)
+		t.Fatalf("ExportPrivateKeyPEM() error = %v", err)
 	}
 
 	privKey, err := ParseECDSAFromPEM([]byte(privPEM))
@@ -190,14 +211,14 @@ func TestParseECDSAFromPEM(t *testing.T) {
 }
 
 func TestParsePublicKeyFromPEM(t *testing.T) {
-	kp1, err := GenerateECDSAKeyPairP256()
+	key, err := GenerateECDSAKeyP256()
 	if err != nil {
-		t.Fatalf("GenerateECDSAKeyPairP256() error = %v", err)
+		t.Fatalf("GenerateECDSAKeyP256() error = %v", err)
 	}
 
-	pubPEM, err := kp1.PublicKeyPEM()
+	pubPEM, err := ExportPublicKeyPEM(&key.PublicKey)
 	if err != nil {
-		t.Fatalf("PublicKeyPEM() error = %v", err)
+		t.Fatalf("ExportPublicKeyPEM() error = %v", err)
 	}
 
 	pubKey, err := ParsePublicKeyFromPEM([]byte(pubPEM))
@@ -211,20 +232,20 @@ func TestParsePublicKeyFromPEM(t *testing.T) {
 
 func TestRoundTripECDSAPEM(t *testing.T) {
 	// Generate key pair
-	kp1, err := GenerateECDSAKeyPairP256()
+	key, err := GenerateECDSAKeyP256()
 	if err != nil {
-		t.Fatalf("GenerateECDSAKeyPairP256() error = %v", err)
+		t.Fatalf("GenerateECDSAKeyP256() error = %v", err)
 	}
 
 	// Export to PEM
-	privPEM, err := kp1.PrivateKeyPEM()
+	privPEM, err := ExportPrivateKeyPEM(key)
 	if err != nil {
-		t.Fatalf("PrivateKeyPEM() error = %v", err)
+		t.Fatalf("ExportPrivateKeyPEM() error = %v", err)
 	}
 
-	pubPEM, err := kp1.PublicKeyPEM()
+	pubPEM, err := ExportPublicKeyPEM(&key.PublicKey)
 	if err != nil {
-		t.Fatalf("PublicKeyPEM() error = %v", err)
+		t.Fatalf("ExportPublicKeyPEM() error = %v", err)
 	}
 
 	// Import from PEM

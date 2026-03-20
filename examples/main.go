@@ -1,9 +1,6 @@
 package main
 
 import (
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
 	"fmt"
 	"log"
 	"time"
@@ -12,7 +9,8 @@ import (
 )
 
 func main() {
-	fmt.Println("=== JWT Library Demo ===\n")
+	fmt.Println("=== JWT Library Demo ===")
+	fmt.Println()
 
 	// HMAC 示例
 	hmacExample()
@@ -71,7 +69,8 @@ func hmacExample() {
 func ecdsaExample() {
 	fmt.Println("--- ECDSA Signing (ES256) ---")
 
-	priKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	// Generate ECDSA key
+	priKey, err := jwt.GenerateECDSAKeyP256()
 	if err != nil {
 		log.Fatal(err)
 	}
