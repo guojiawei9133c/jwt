@@ -5,8 +5,6 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
-	"encoding/base64"
-	"encoding/hex"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -32,24 +30,6 @@ func GenerateHMACKey(bits int) ([]byte, error) {
 	}
 
 	return key, nil
-}
-
-// GenerateHMACKeyHex 生成随机 HMAC 密钥（十六进制编码）
-func GenerateHMACKeyHex(bits int) (string, error) {
-	key, err := GenerateHMACKey(bits)
-	if err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(key), nil
-}
-
-// GenerateHMACKeyBase64 生成随机 HMAC 密钥（Base64 编码）
-func GenerateHMACKeyBase64(bits int) (string, error) {
-	key, err := GenerateHMACKey(bits)
-	if err != nil {
-		return "", err
-	}
-	return base64.StdEncoding.EncodeToString(key), nil
 }
 
 // ECDSAKeyPair ECDSA 密钥对

@@ -34,30 +34,22 @@ import (
 )
 
 func main() {
-    // Generate raw HMAC key (returns []byte)
+    // Generate HMAC key (returns []byte)
     key, err := jwt.GenerateHMACKey(256)  // 256 bits for HS256
     if err != nil {
         panic(err)
     }
-    fmt.Println("HMAC Key (raw):", key)
 
-    // Or get hex encoded string
-    keyHex, err := jwt.GenerateHMACKeyHex(256)
-    if err != nil {
-        panic(err)
-    }
-    fmt.Println("HMAC Key (Hex):", keyHex)
-
-    // Or get Base64 encoded string
-    keyBase64, err := jwt.GenerateHMACKeyBase64(256)
-    if err != nil {
-        panic(err)
-    }
-    fmt.Println("HMAC Key (Base64):", keyBase64)
-
-    // Use raw key with generator
+    // Use directly with generator
     gen, err := jwt.NewGenerator(jwt.HS256, key)
     // ...
+
+    // For storage/display, encode as needed
+    keyHex := hex.EncodeToString(key)
+    fmt.Println("HMAC Key (Hex):", keyHex)
+
+    // Or base64
+    // keyBase64 := base64.StdEncoding.EncodeToString(key)
 }
 ```
 
@@ -374,6 +366,7 @@ func main() {
 package main
 
 import (
+    "encoding/base64"
     "encoding/hex"
     "flag"
     "fmt"
@@ -401,8 +394,7 @@ func main() {
         case "hex":
             fmt.Println(hex.EncodeToString(key))
         case "base64":
-            b64, _ := jwt.GenerateHMACKeyBase64(*bits)
-            fmt.Println(b64)
+            fmt.Println(base64.StdEncoding.EncodeToString(key))
         default:
             fmt.Fprintf(os.Stderr, "Invalid format: %s\n", *format)
             os.Exit(1)
@@ -461,8 +453,6 @@ go run main.go -type ecdsa -curve P256 -output mykey
 ### Key Generation Functions
 
 - `GenerateHMACKey(bits int) ([]byte, error)`: Generate random HMAC key (raw bytes)
-- `GenerateHMACKeyHex(bits int) (string, error)`: Generate random HMAC key (hex encoded)
-- `GenerateHMACKeyBase64(bits int) (string, error)`: Generate random HMAC key (Base64 encoded)
 - `GenerateECDSAKeyPair(curve string) (*ECDSAKeyPair, error)`: Generate ECDSA key pair (supports P256, P384, P521)
 - `(kp *ECDSAKeyPair) PrivateKeyPEM() (string, error)`: Export private key to PEM format
 - `(kp *ECDSAKeyPair) PublicKeyPEM() (string, error)`: Export public key to PEM format

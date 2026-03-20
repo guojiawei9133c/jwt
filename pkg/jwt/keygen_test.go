@@ -1,7 +1,6 @@
 package jwt
 
 import (
-	"encoding/base64"
 	"strings"
 	"testing"
 )
@@ -40,31 +39,6 @@ func TestGenerateHMACKeyInvalid(t *testing.T) {
 	_, err = GenerateHMACKey(0)
 	if err == nil {
 		t.Error("GenerateHMACKey() with 0 bits should return error")
-	}
-}
-
-func TestGenerateHMACKeyHex(t *testing.T) {
-	keyHex, err := GenerateHMACKeyHex(256)
-	if err != nil {
-		t.Fatalf("GenerateHMACKeyHex() error = %v", err)
-	}
-	if len(keyHex) != 64 { // 32 bytes = 64 hex chars
-		t.Errorf("GenerateHMACKeyHex() len = %v, want 64", len(keyHex))
-	}
-}
-
-func TestGenerateHMACKeyBase64(t *testing.T) {
-	key, err := GenerateHMACKeyBase64(256)
-	if err != nil {
-		t.Fatalf("GenerateHMACKeyBase64() error = %v", err)
-	}
-	if len(key) == 0 {
-		t.Error("GenerateHMACKeyBase64() returned empty string")
-	}
-	// Verify it's valid base64
-	_, err = base64.StdEncoding.DecodeString(key)
-	if err != nil {
-		t.Errorf("GenerateHMACKeyBase64() produced invalid base64: %v", err)
 	}
 }
 
