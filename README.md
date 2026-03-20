@@ -152,7 +152,7 @@ import (
 
 func main() {
     // Generate a secure key or use existing key
-    secret, err := jwt.GenerateHMACKey(256)
+    secret, err := jwt.GenerateHMACKey256()
     if err != nil {
         panic(err)
     }
@@ -197,15 +197,12 @@ func main() {
 package main
 
 import (
-    "crypto/ecdsa"
-    "crypto/elliptic"
-    "crypto/rand"
     "github.com/jwt/pkg/jwt"
 )
 
 func main() {
-    // Generate ECDSA key pair
-    priKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+    // Generate ECDSA key
+    priKey, err := jwt.GenerateECDSAKeyP256()
     if err != nil {
         panic(err)
     }
@@ -503,7 +500,6 @@ go run main.go -type ecdsa -curve P256 -output mykey
 - `ExportPrivateKeyPEM(key *ecdsa.PrivateKey) (string, error)`: Export ECDSA private key to PEM format
 - `ExportPublicKeyPEM(key *ecdsa.PublicKey) (string, error)`: Export ECDSA public key to PEM format
 - `ParseECDSAFromPEM(pemData []byte) (*ecdsa.PrivateKey, error)`: Parse ECDSA private key from PEM
-- `ParsePublicKeyFromPEM(pemData []byte) (*ecdsa.PublicKey, error)`: Parse public key from PEM
 - `ParsePublicKeyFromPEM(pemData []byte) (*ecdsa.PublicKey, error)`: Parse public key from PEM
 
 ### Generator Functions
