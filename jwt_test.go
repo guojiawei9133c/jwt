@@ -285,3 +285,147 @@ func TestVerifyBearerInvalidSignature(t *testing.T) {
 		t.Errorf("Expected ErrInvalidSignature, got: %v", err)
 	}
 }
+
+func TestDecode(t *testing.T) {
+	gen, _ := NewGenerator(HS256, []byte("secret"))
+
+	claims := &Claims{
+		Issuer:   "test-issuer",
+		Subject:  "user123",
+		Audience: "my-api",
+		ExpireAt: time.Now().Add(1 * time.Hour).Unix(),
+		CustomData: map[string]interface{}{
+			"role": "admin",
+		},
+	}
+
+	tokenString, err := gen.Generate(claims)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	// Decode without verification
+	token, err := Decode(tokenString)
+	if err != nil {
+		t.Fatalf("Decode failed: %v", err)
+	}
+
+	// Check Raw
+	if token.Raw != tokenString {
+		t.Error("Raw token mismatch")
+	}
+
+	// Check Header
+	if token.Header == nil {
+		t.Fatal("Header is nil")
+	}
+	if token.Header["typ"] != "JWT" {
+		t.Errorf("Header typ = %v, want JWT", token.Header["typ"])
+	}
+	if token.Header["alg"] != "HS256" {
+		t.Errorf("Header alg = %v, want HS256", token.Header["alg"])
+	}
+
+	// Check Claims
+	if token.Claims == nil {
+		t.Fatal("Claims is nil")
+	}
+	if token.Claims.Issuer != claims.Issuer {
+		t.Errorf("Issuer = %v, want %v", token.Claims.Issuer, claims.Issuer)
+	}
+	if token.Claims.Subject != claims.Subject {
+		t.Errorf("Subject = %v, want %v", token.Claims.Subject, claims.Subject)
+	}
+	if token.Claims.Audience != claims.Audience {
+		t.Errorf("Audience = %v, want %v", token.Claims.Audience, claims.Audience)
+	}
+	if token.Claims.CustomData["role"] != "admin" {
+		t.Errorf("CustomData role = %v, want admin", token.Claims.CustomData["role"])
+	}
+
+	// Check Signature
+	if token.Signature == "" {
+		t.Error("Signature is empty")
+	}
+}
+
+func TestDecodeInvalidToken(t *testing.T) {
+	tests := []struct {
+		name  string
+		token string
+	}{
+		{"Empty", ""},
+		{"MissingParts", "header.payload"},
+		{"InvalidBase64", "invalid.invalid.invalid"},
+		{"OnlyHeader", "abc.def"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := Decode(tt.token)
+			if err == nil {
+				t.Error("Expected error for invalid token")
+			}
+		})
+	}
+}
+
+func TestDecodeECDSAToken(t *testing.T) {
+	priKey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	gen, _ := NewGeneratorWithECDSA(ES256, priKey)
+
+	claims := &Claims{
+		Issuer:   "ecdsa-issuer",
+		Subject:  "user456",
+		ExpireAt: time.Now().Add(1 * time.Hour).Unix(),
+	}
+
+	tokenString, _ := gen.Generate(claims)
+
+	token, err := Decode(tokenString)
+	if err != nil {
+		t.Fatalf("Decode failed: %v", err)
+	}
+
+	if token.Claims.Issuer != claims.Issuer {
+		t.Errorf("Issuer = %v, want %v", token.Claims.Issuer, claims.Issuer)
+	}
+	if token.Header["alg"] != "ES256" {
+		t.Errorf("Header alg = %v, want ES256", token.Header["alg"])
+	}
+}
+
+func TestDecodeThenVerify(t *testing.T) {
+	// Phase 1: Generate token
+	gen, _ := NewGenerator(HS256, []byte("secret"))
+	claims := &Claims{
+		Issuer:   "my-app",
+		Subject:  "user123",
+		ExpireAt: time.Now().Add(1 * time.Hour).Unix(),
+	}
+	tokenString, _ := gen.Generate(claims)
+
+	// Phase 2: Decode without key (simulate multi-tenant scenario)
+	token, err := Decode(tokenString)
+	if err != nil {
+		t.Fatalf("Decode failed: %v", err)
+	}
+
+	// Use decoded info to lookup key (simulated)
+	issuer := token.Claims.Issuer
+	if issuer != "my-app" {
+		t.Errorf("Issuer = %v, want my-app", issuer)
+	}
+	// In real scenario: key := keyStore.Lookup(issuer)
+	// For this test, we already have the key
+
+	// Phase 3: Verify with key
+	verified, err := gen.Verify(token.Raw)
+	if err != nil {
+		t.Fatalf("Verify failed: %v", err)
+	}
+
+	if verified.Subject != claims.Subject {
+		t.Errorf("Subject = %v, want %v", verified.Subject, claims.Subject)
+	}
+}

@@ -90,6 +90,89 @@ func (g *Generator) SetPublicKey(pubKey *ecdsa.PublicKey) {
 	g.pubKey = pubKey
 }
 
+// Decode 解析 JWT Token，不验证签名
+// 用于两阶段验证：先解析获取签发者信息，再查找密钥验证
+func Decode(tokenString string) (*Token, error) {
+	if tokenString == "" {
+		return nil, ErrInvalidToken
+	}
+
+	parts := strings.Split(tokenString, ".")
+	if len(parts) != 3 {
+		return nil, ErrInvalidToken
+	}
+
+	// 解码 Header
+	headerJSON, err := base64URLDecode(parts[0])
+	if err != nil {
+		return nil, ErrInvalidToken
+	}
+
+	var header map[string]interface{}
+	if err := json.Unmarshal(headerJSON, &header); err != nil {
+		return nil, ErrInvalidToken
+	}
+
+	// 解码 Payload
+	payloadJSON, err := base64URLDecode(parts[1])
+	if err != nil {
+		return nil, ErrInvalidToken
+	}
+
+	var payload map[string]interface{}
+	if err := json.Unmarshal(payloadJSON, &payload); err != nil {
+		return nil, ErrInvalidToken
+	}
+
+	// 解析 Claims
+	claims := &Claims{CustomData: make(map[string]interface{})}
+	if v, ok := payload["iss"].(string); ok {
+		claims.Issuer = v
+	}
+	if v, ok := payload["sub"].(string); ok {
+		claims.Subject = v
+	}
+	if v, ok := payload["aud"].(string); ok {
+		claims.Audience = v
+	}
+	if v, ok := payload["exp"].(float64); ok {
+		claims.ExpireAt = int64(v)
+	}
+	if v, ok := payload["iat"].(float64); ok {
+		claims.IssuedAt = int64(v)
+	}
+	if v, ok := payload["nbf"].(float64); ok {
+		claims.NotBefore = int64(v)
+	}
+	if v, ok := payload["jti"].(string); ok {
+		claims.ID = v
+	}
+
+	// 提取自定义数据
+	for k, v := range payload {
+		switch k {
+		case "iss", "sub", "aud", "exp", "iat", "nbf", "jti":
+			// 标准字段跳过
+		default:
+			claims.CustomData[k] = v
+		}
+	}
+
+	// 获取签名方法
+	method := SigningMethod("")
+	if v, ok := header["alg"].(string); ok {
+		method = SigningMethod(v)
+	}
+
+	return &Token{
+		Raw:       tokenString,
+		Header:    header,
+		Claims:    claims,
+		Signature: parts[2],
+		Method:    method,
+	}, nil
+}
+
 // Generate 生成 Token
 func (g *Generator) Generate(claims *Claims) (string, error) {
 	now := time.Now().Unix()

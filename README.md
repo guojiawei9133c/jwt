@@ -250,6 +250,68 @@ func main() {
 }
 ```
 
+### Two-Phase Verification (Multi-Tenant Scenario)
+
+When you need to identify the issuer first before looking up the verification key:
+
+```go
+package main
+
+import (
+    "fmt"
+    "github.com/guojiawei9133c/jwt"
+)
+
+// Simulated key store for multiple issuers
+var keyStore = map[string][]byte{
+    "app1": []byte("secret-for-app1"),
+    "app2": []byte("secret-for-app2"),
+}
+
+func verifyToken(tokenString string) (*jwt.Claims, error) {
+    // Phase 1: Decode without verification to identify issuer
+    token, err := jwt.Decode(tokenString)
+    if err != nil {
+        return nil, err
+    }
+
+    issuer := token.Claims.Issuer
+    fmt.Printf("Token from issuer: %s\n", issuer)
+
+    // Phase 2: Lookup key based on issuer
+    secret, ok := keyStore[issuer]
+    if !ok {
+        return nil, fmt.Errorf("unknown issuer: %s", issuer)
+    }
+
+    // Phase 3: Verify with correct key
+    gen, err := jwt.NewGenerator(token.Header["alg"].(jwt.SigningMethod), secret)
+    if err != nil {
+        return nil, err
+    }
+
+    return gen.Verify(token.Raw)
+}
+
+func main() {
+    // Token from app1
+    gen1, _ := jwt.NewGenerator(jwt.HS256, keyStore["app1"])
+    claims := &jwt.Claims{
+        Issuer:   "app1",
+        Subject:  "user123",
+        ExpireAt: 9999999999,
+    }
+    token, _ := gen1.Generate(claims)
+
+    // Verify using two-phase approach
+    verified, err := verifyToken(token)
+    if err != nil {
+        panic(err)
+    }
+    fmt.Printf("Verified: %s\n", verified.Subject)
+}
+```
+
 ---
 
 ## Complete Examples
@@ -531,6 +593,10 @@ go run main.go -type ecdsa -curve P256 -output mykey
 - `ExportPublicKeyPEM(key *ecdsa.PublicKey) (string, error)`: Export ECDSA public key to PEM format
 - `ParseECDSAFromPEM(pemData []byte) (*ecdsa.PrivateKey, error)`: Parse ECDSA private key from PEM
 - `ParsePublicKeyFromPEM(pemData []byte) (*ecdsa.PublicKey, error)`: Parse public key from PEM
+
+### Parsing Functions
+
+- `Decode(token string) (*Token, error)`: Parse JWT token without signature verification. Returns decoded header, claims, and signature. Use for two-phase verification: decode to identify issuer, then lookup key and verify.
 
 ### Generator Functions
 
