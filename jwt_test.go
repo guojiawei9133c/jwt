@@ -219,3 +219,69 @@ func TestNotBefore(t *testing.T) {
 		t.Errorf("Expected ErrTokenExpired for nbf in future, got: %v", err)
 	}
 }
+
+func TestVerifyBearer(t *testing.T) {
+	gen, _ := NewGenerator(HS256, []byte("secret"))
+
+	claims := &Claims{
+		Issuer:   "test",
+		Subject:  "user123",
+		ExpireAt: time.Now().Add(1 * time.Hour).Unix(),
+	}
+
+	token, err := gen.Generate(claims)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	tests := []struct {
+		name           string
+		authorization  string
+		wantSubject    string
+		wantErr        bool
+	}{
+		{"ValidBearer", "Bearer " + token, "user123", false},
+		{"ValidBearerWithSpace", "Bearer  " + token, "user123", false},
+		{"LowerCaseBearer", "bearer " + token, "user123", false},
+		{"MixedCaseBearer", "BEARER " + token, "user123", false},
+		{"NoBearer", token, "user123", false}, // 兼容直接传 token
+		{"EmptyString", "", "", true},
+		{"OnlyBearer", "Bearer", "", true},
+		{"BearerEmpty", "Bearer ", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			verified, err := gen.VerifyBearer(tt.authorization)
+			if tt.wantErr {
+				if err == nil {
+					t.Error("Expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("VerifyBearer failed: %v", err)
+			}
+			if verified.Subject != tt.wantSubject {
+				t.Errorf("Subject = %v, want %v", verified.Subject, tt.wantSubject)
+			}
+		})
+	}
+}
+
+func TestVerifyBearerInvalidSignature(t *testing.T) {
+	gen1, _ := NewGenerator(HS256, []byte("secret1"))
+	gen2, _ := NewGenerator(HS256, []byte("secret2"))
+
+	claims := &Claims{
+		Subject:  "user123",
+		ExpireAt: time.Now().Add(1 * time.Hour).Unix(),
+	}
+
+	token, _ := gen1.Generate(claims)
+
+	_, err := gen2.VerifyBearer("Bearer " + token)
+	if err != ErrInvalidSignature {
+		t.Errorf("Expected ErrInvalidSignature, got: %v", err)
+	}
+}

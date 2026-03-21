@@ -219,6 +219,28 @@ func (g *Generator) Verify(tokenString string) (*Claims, error) {
 	return claims, nil
 }
 
+// VerifyBearer 验证 Bearer Token
+// authorization 格式: "Bearer <token>" 或直接传 token
+func (g *Generator) VerifyBearer(authorization string) (*Claims, error) {
+	if authorization == "" {
+		return nil, ErrInvalidToken
+	}
+
+	// 去除 Bearer 前缀
+	token := strings.TrimPrefix(authorization, "Bearer ")
+	token = strings.TrimPrefix(token, "bearer ")
+	token = strings.TrimPrefix(token, "BEARER ")
+
+	// 去除前后空格
+	token = strings.TrimSpace(token)
+
+	if token == "" {
+		return nil, ErrInvalidToken
+	}
+
+	return g.Verify(token)
+}
+
 // sign 签名
 func (g *Generator) sign(signingInput string) (string, error) {
 	var sig []byte

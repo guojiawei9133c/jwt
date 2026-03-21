@@ -220,6 +220,36 @@ func main() {
 }
 ```
 
+### Verifying Bearer Token (HTTP Authorization Header)
+
+```go
+package main
+
+import (
+    "fmt"
+    "time"
+    "github.com/guojiawei9133c/jwt"
+)
+
+func main() {
+    // Setup generator
+    secret, _ := jwt.GenerateHMACKey256()
+    gen, _ := jwt.NewGenerator(jwt.HS256, secret)
+
+    // Simulate Authorization header from HTTP request
+    authorization := "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+    // Verify Bearer token
+    claims, err := gen.VerifyBearer(authorization)
+    if err != nil {
+        // Handle invalid token (401 Unauthorized)
+        panic(err)
+    }
+
+    fmt.Printf("Authenticated user: %s\n", claims.Subject)
+}
+```
+
 ---
 
 ## Complete Examples
@@ -508,6 +538,7 @@ go run main.go -type ecdsa -curve P256 -output mykey
 - `NewGeneratorWithECDSA(method SigningMethod, priKey *ecdsa.PrivateKey) (*Generator, error)`: Create ECDSA-based generator
 - `(g *Generator) Generate(claims *Claims) (string, error)`: Generate a JWT token
 - `(g *Generator) Verify(token string) (*Claims, error)`: Verify and parse a JWT token
+- `(g *Generator) VerifyBearer(authorization string) (*Claims, error)`: Verify Bearer token from Authorization header (supports "Bearer <token>" or raw token)
 - `(g *Generator) SetPublicKey(pubKey *ecdsa.PublicKey)`: Set public key for ECDSA verification
 
 ### Standard Claims
