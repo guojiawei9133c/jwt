@@ -286,6 +286,81 @@ func TestVerifyBearerInvalidSignature(t *testing.T) {
 	}
 }
 
+func TestGenerateDoesNotModifyClaims(t *testing.T) {
+	gen, _ := NewGenerator(HS256, []byte("secret"))
+
+	originalClaims := &Claims{
+		Issuer:   "test",
+		Subject:  "user123",
+		// IssuedAt = 0, ExpireAt = 0
+	}
+
+	originalIssuedAt := originalClaims.IssuedAt
+	originalExpireAt := originalClaims.ExpireAt
+
+	// Generate token
+	token, _ := gen.Generate(originalClaims)
+
+	// Claims should not be modified
+	if originalClaims.IssuedAt != originalIssuedAt {
+		t.Errorf("IssuedAt was modified: %v", originalClaims.IssuedAt)
+	}
+	if originalClaims.ExpireAt != originalExpireAt {
+		t.Errorf("ExpireAt was modified: %v", originalClaims.ExpireAt)
+	}
+
+	// Token should be generated
+	if token == "" {
+		t.Error("Token should not be empty")
+	}
+
+	// Generate again with same claims - should produce same result in same second
+	token2, _ := gen.Generate(originalClaims)
+	if token2 == "" {
+		t.Error("Second token should not be empty")
+	}
+}
+
+func TestVerifyWithKeyStoreInvalidAlgorithm(t *testing.T) {
+	store := NewMemoryKeyStore()
+
+	// Create ECDSA token
+	priKey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	gen, _ := NewGeneratorWithECDSA(ES256, priKey)
+
+	claims := &Claims{
+		ID:       "test-jti",
+		Subject:  "user123",
+		ExpireAt: time.Now().Add(1 * time.Hour).Unix(),
+	}
+
+	token, _ := gen.Generate(claims)
+
+	// Try to verify with KeyStore (should fail - not HMAC)
+	_, err := VerifyWithKeyStore(token, store)
+	if err == nil {
+		t.Error("Expected error for ECDSA token with KeyStore")
+	}
+}
+
+func TestMemoryKeyStoreClose(t *testing.T) {
+	store := NewMemoryKeyStore()
+
+	store.Set("jti1", []byte("secret1"))
+
+	// Should work before close
+	secret, ok := store.Get("jti1")
+	if !ok || string(secret) != "secret1" {
+		t.Error("Get failed before Close")
+	}
+
+	// Close should not error
+	err := store.Close()
+	if err != nil {
+		t.Errorf("Close() error = %v", err)
+	}
+}
+
 func TestDecode(t *testing.T) {
 	gen, _ := NewGenerator(HS256, []byte("secret"))
 

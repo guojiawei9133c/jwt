@@ -21,6 +21,11 @@ var (
 	ErrInvalidSignature = errors.New("invalid signature")
 	ErrTokenExpired     = errors.New("token expired")
 	ErrInvalidKey       = errors.New("invalid key")
+	ErrMarshal          = errors.New("failed to marshal claims")
+)
+
+const (
+	defaultExpirationSeconds = 3600 // 默认1小时
 )
 
 // SigningMethod 定义签名方法
@@ -228,6 +233,7 @@ func GenerateWithKeyAndTTL(store KeyStore, gen *Generator, claims *Claims, keySi
 
 // VerifyWithKeyStore 使用 KeyStore 验证 token
 // 自动从 KeyStore 根据 jti 查找密钥并验证
+// 注意: 当前仅支持 HMAC 算法 (HS256/HS384/HS512)
 func VerifyWithKeyStore(tokenString string, store KeyStore) (*Claims, error) {
 	// 解码 token 获取 jti
 	token, err := Decode(tokenString)
@@ -237,6 +243,11 @@ func VerifyWithKeyStore(tokenString string, store KeyStore) (*Claims, error) {
 
 	if token.Claims.ID == "" {
 		return nil, ErrInvalidKey
+	}
+
+	// 验证算法类型：KeyStore 仅支持 HMAC
+	if token.Method != HS256 && token.Method != HS384 && token.Method != HS512 {
+		return nil, fmt.Errorf("KeyStore only supports HMAC algorithms, got: %s", token.Method)
 	}
 
 	// 从 KeyStore 获取密钥
@@ -258,11 +269,15 @@ func VerifyWithKeyStore(tokenString string, store KeyStore) (*Claims, error) {
 func (g *Generator) Generate(claims *Claims) (string, error) {
 	now := time.Now().Unix()
 
-	if claims.IssuedAt == 0 {
-		claims.IssuedAt = now
+	// 使用局部变量，不修改输入参数
+	issuedAt := claims.IssuedAt
+	if issuedAt == 0 {
+		issuedAt = now
 	}
-	if claims.ExpireAt == 0 {
-		claims.ExpireAt = now + 3600 // 默认1小时
+
+	expireAt := claims.ExpireAt
+	if expireAt == 0 {
+		expireAt = now + defaultExpirationSeconds
 	}
 
 	header := map[string]interface{}{
@@ -281,11 +296,11 @@ func (g *Generator) Generate(claims *Claims) (string, error) {
 	if claims.Audience != "" {
 		payload["aud"] = claims.Audience
 	}
-	if claims.ExpireAt > 0 {
-		payload["exp"] = claims.ExpireAt
+	if expireAt > 0 {
+		payload["exp"] = expireAt
 	}
-	if claims.IssuedAt > 0 {
-		payload["iat"] = claims.IssuedAt
+	if issuedAt > 0 {
+		payload["iat"] = issuedAt
 	}
 	if claims.NotBefore > 0 {
 		payload["nbf"] = claims.NotBefore
@@ -297,8 +312,15 @@ func (g *Generator) Generate(claims *Claims) (string, error) {
 		payload[k] = v
 	}
 
-	headerJSON, _ := json.Marshal(header)
-	payloadJSON, _ := json.Marshal(payload)
+	headerJSON, err := json.Marshal(header)
+	if err != nil {
+		return "", fmt.Errorf("%w: %v", ErrMarshal, err)
+	}
+
+	payloadJSON, err := json.Marshal(payload)
+	if err != nil {
+		return "", fmt.Errorf("%w: %v", ErrMarshal, err)
+	}
 
 	headerEncoded := base64URLEncode(headerJSON)
 	payloadEncoded := base64URLEncode(payloadJSON)
@@ -476,11 +498,13 @@ func base64URLEncode(data []byte) string {
 }
 
 func base64URLDecode(data string) ([]byte, error) {
-	switch len(data) % 4 {
+	// 使用局部变量避免修改输入
+	padded := data
+	switch len(padded) % 4 {
 	case 2:
-		data += "=="
+		padded += "=="
 	case 3:
-		data += "="
+		padded += "="
 	}
-	return base64.URLEncoding.DecodeString(data)
+	return base64.URLEncoding.DecodeString(padded)
 }

@@ -159,14 +159,16 @@ type KeyStore interface {
 	Delete(jti string)
 	// SetWithTTL 存储带过期时间的密钥
 	SetWithTTL(jti string, secret []byte, ttl time.Duration)
+	// Close 关闭 KeyStore，释放资源
+	Close() error
 }
 
 // MemoryKeyStore 内存密钥存储实现
 type MemoryKeyStore struct {
-	mu       sync.RWMutex
-	keys     map[string][]byte
-	expires  map[string]time.Time
-	cleanup  chan string
+	mu      sync.RWMutex
+	keys    map[string][]byte
+	expires map[string]time.Time
+	stopCh  chan struct{}
 }
 
 // NewMemoryKeyStore 创建内存密钥存储
@@ -174,10 +176,16 @@ func NewMemoryKeyStore() *MemoryKeyStore {
 	store := &MemoryKeyStore{
 		keys:    make(map[string][]byte),
 		expires: make(map[string]time.Time),
-		cleanup: make(chan string, 100),
+		stopCh:  make(chan struct{}),
 	}
 	go store.cleanupExpired()
 	return store
+}
+
+// Close 关闭 KeyStore，停止后台清理
+func (s *MemoryKeyStore) Close() error {
+	close(s.stopCh)
+	return nil
 }
 
 // Set 存储密钥
@@ -198,11 +206,13 @@ func (s *MemoryKeyStore) SetWithTTL(jti string, secret []byte, ttl time.Duration
 
 // Get 获取密钥
 func (s *MemoryKeyStore) Get(jti string) ([]byte, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	// 检查是否过期
+	// 检查是否过期，过期则立即删除
 	if exp, ok := s.expires[jti]; ok && time.Now().After(exp) {
+		delete(s.keys, jti)
+		delete(s.expires, jti)
 		return nil, false
 	}
 
@@ -223,15 +233,20 @@ func (s *MemoryKeyStore) cleanupExpired() {
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		s.mu.Lock()
-		now := time.Now()
-		for jti, exp := range s.expires {
-			if now.After(exp) {
-				delete(s.keys, jti)
-				delete(s.expires, jti)
+	for {
+		select {
+		case <-ticker.C:
+			s.mu.Lock()
+			now := time.Now()
+			for jti, exp := range s.expires {
+				if now.After(exp) {
+					delete(s.keys, jti)
+					delete(s.expires, jti)
+				}
 			}
+			s.mu.Unlock()
+		case <-s.stopCh:
+			return
 		}
-		s.mu.Unlock()
 	}
 }
