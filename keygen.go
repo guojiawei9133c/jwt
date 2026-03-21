@@ -8,6 +8,8 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"sync"
+	"time"
 )
 
 const (
@@ -145,4 +147,91 @@ func ParsePublicKeyFromPEM(pemData []byte) (*ecdsa.PublicKey, error) {
 	}
 
 	return ecdsaKey, nil
+}
+
+// KeyStore 密钥存储接口，用于按 jti 存储和检索密钥
+type KeyStore interface {
+	// Set 存储密钥
+	Set(jti string, secret []byte)
+	// Get 获取密钥，返回密钥和是否存在
+	Get(jti string) ([]byte, bool)
+	// Delete 删除密钥
+	Delete(jti string)
+	// SetWithTTL 存储带过期时间的密钥
+	SetWithTTL(jti string, secret []byte, ttl time.Duration)
+}
+
+// MemoryKeyStore 内存密钥存储实现
+type MemoryKeyStore struct {
+	mu       sync.RWMutex
+	keys     map[string][]byte
+	expires  map[string]time.Time
+	cleanup  chan string
+}
+
+// NewMemoryKeyStore 创建内存密钥存储
+func NewMemoryKeyStore() *MemoryKeyStore {
+	store := &MemoryKeyStore{
+		keys:    make(map[string][]byte),
+		expires: make(map[string]time.Time),
+		cleanup: make(chan string, 100),
+	}
+	go store.cleanupExpired()
+	return store
+}
+
+// Set 存储密钥
+func (s *MemoryKeyStore) Set(jti string, secret []byte) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.keys[jti] = secret
+	delete(s.expires, jti)
+}
+
+// SetWithTTL 存储带过期时间的密钥
+func (s *MemoryKeyStore) SetWithTTL(jti string, secret []byte, ttl time.Duration) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.keys[jti] = secret
+	s.expires[jti] = time.Now().Add(ttl)
+}
+
+// Get 获取密钥
+func (s *MemoryKeyStore) Get(jti string) ([]byte, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	// 检查是否过期
+	if exp, ok := s.expires[jti]; ok && time.Now().After(exp) {
+		return nil, false
+	}
+
+	secret, ok := s.keys[jti]
+	return secret, ok
+}
+
+// Delete 删除密钥
+func (s *MemoryKeyStore) Delete(jti string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.keys, jti)
+	delete(s.expires, jti)
+}
+
+// cleanupExpired 后台清理过期密钥
+func (s *MemoryKeyStore) cleanupExpired() {
+	ticker := time.NewTicker(1 * time.Minute)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		s.mu.Lock()
+		now := time.Now()
+		for jti, exp := range s.expires {
+			if now.After(exp) {
+				delete(s.keys, jti)
+				delete(s.expires, jti)
+			}
+		}
+		s.mu.Unlock()
+	}
 }

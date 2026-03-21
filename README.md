@@ -461,6 +461,54 @@ func main() {
 }
 ```
 
+### Example 4: Per-Token Key Security (Highest Security)
+
+For high-security scenarios where each token should have its own unique key:
+
+```go
+package main
+
+import (
+    "fmt"
+    "time"
+    "github.com/guojiawei9133c/jwt"
+)
+
+func main() {
+    // Create key store (in production, use Redis or database)
+    store := jwt.NewMemoryKeyStore()
+    gen, _ := jwt.NewGenerator(jwt.HS256, nil) // method reference only
+
+    // Generate token with unique key per jti
+    claims := &jwt.Claims{
+        Issuer:   "secure-app",
+        Subject:  "user123",
+        ID:       "unique-token-id-" + time.Now().Format("20060102150405"),
+        ExpireAt: time.Now().Add(24 * time.Hour).Unix(),
+        CustomData: map[string]interface{}{
+            "clearance": "high",
+        },
+    }
+
+    // Generate with per-jti key, key expires in 24 hours
+    token, err := jwt.GenerateWithKeyAndTTL(store, gen, claims, jwt.GenerateHMACKey256, 24*time.Hour)
+    if err != nil {
+        panic(err)
+    }
+    fmt.Println("Token:", token)
+
+    // Verify using KeyStore
+    verified, err := jwt.VerifyWithKeyStore(token, store)
+    if err != nil {
+        panic(err)
+    }
+    fmt.Printf("Verified: %s has clearance %s\n", verified.Subject, verified.CustomData["clearance"])
+
+    // After verification, you can optionally delete the key
+    // store.Delete(claims.ID)
+}
+```
+
 ### Example 3: CLI Tool for Key Generation
 
 ```go
@@ -580,6 +628,7 @@ go run main.go -type ecdsa -curve P256 -output mykey
 - `Claims`: JWT claims with standard and custom fields
 - `Token`: Represents a parsed JWT token
 - `Generator`: JWT token generator and verifier
+- `KeyStore`: Interface for storing and retrieving per-token keys
 
 ### Key Generation Functions
 
@@ -597,6 +646,17 @@ go run main.go -type ecdsa -curve P256 -output mykey
 ### Parsing Functions
 
 - `Decode(token string) (*Token, error)`: Parse JWT token without signature verification. Returns decoded header, claims, and signature. Use for two-phase verification: decode to identify issuer, then lookup key and verify.
+
+### KeyStore Functions (Per-Token Key Security)
+
+- `NewMemoryKeyStore() *MemoryKeyStore`: Create an in-memory key store with automatic expiration cleanup
+- `(KeyStore) Set(jti string, secret []byte)`: Store a key for the given jti
+- `(KeyStore) SetWithTTL(jti string, secret []byte, ttl time.Duration)`: Store a key with time-to-live
+- `(KeyStore) Get(jti string) ([]byte, bool)`: Retrieve a key by jti
+- `(KeyStore) Delete(jti string)`: Remove a key from storage
+- `GenerateWithKey(store KeyStore, gen *Generator, claims *Claims, keySize func() ([]byte, error)) (string, error)`: Generate token with per-jti key
+- `GenerateWithKeyAndTTL(store KeyStore, gen *Generator, claims *Claims, keySize func() ([]byte, error), ttl time.Duration) (string, error)`: Generate token with per-jti key and expiration
+- `VerifyWithKeyStore(token string, store KeyStore) (*Claims, error)`: Verify token using key from KeyStore
 
 ### Generator Functions
 

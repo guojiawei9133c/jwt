@@ -173,6 +173,87 @@ func Decode(tokenString string) (*Token, error) {
 	}, nil
 }
 
+// GenerateWithKey 生成带有独立密钥的 JWT token
+// 自动生成新的随机密钥，存储到 KeyStore，并生成 token
+// 返回 token 字符串，不返回密钥（密钥由 KeyStore 管理）
+func GenerateWithKey(store KeyStore, gen *Generator, claims *Claims, keySize func() ([]byte, error)) (string, error) {
+	if claims.ID == "" {
+		return "", ErrInvalidKey
+	}
+
+	// 生成新的随机密钥
+	secret, err := keySize()
+	if err != nil {
+		return "", fmt.Errorf("failed to generate key: %w", err)
+	}
+
+	// 存储到 KeyStore
+	store.Set(claims.ID, secret)
+
+	// 创建使用新密钥的 Generator
+	newGen, err := NewGenerator(gen.method, secret)
+	if err != nil {
+		return "", err
+	}
+
+	// 生成 token
+	return newGen.Generate(claims)
+}
+
+// GenerateWithKeyAndTTL 生成带有独立密钥和过期时间的 JWT token
+// 密钥会在指定时间后自动过期
+func GenerateWithKeyAndTTL(store KeyStore, gen *Generator, claims *Claims, keySize func() ([]byte, error), ttl time.Duration) (string, error) {
+	if claims.ID == "" {
+		return "", ErrInvalidKey
+	}
+
+	// 生成新的随机密钥
+	secret, err := keySize()
+	if err != nil {
+		return "", fmt.Errorf("failed to generate key: %w", err)
+	}
+
+	// 存储到 KeyStore，带 TTL
+	store.SetWithTTL(claims.ID, secret, ttl)
+
+	// 创建使用新密钥的 Generator
+	newGen, err := NewGenerator(gen.method, secret)
+	if err != nil {
+		return "", err
+	}
+
+	// 生成 token
+	return newGen.Generate(claims)
+}
+
+// VerifyWithKeyStore 使用 KeyStore 验证 token
+// 自动从 KeyStore 根据 jti 查找密钥并验证
+func VerifyWithKeyStore(tokenString string, store KeyStore) (*Claims, error) {
+	// 解码 token 获取 jti
+	token, err := Decode(tokenString)
+	if err != nil {
+		return nil, err
+	}
+
+	if token.Claims.ID == "" {
+		return nil, ErrInvalidKey
+	}
+
+	// 从 KeyStore 获取密钥
+	secret, ok := store.Get(token.Claims.ID)
+	if !ok {
+		return nil, ErrInvalidKey
+	}
+
+	// 创建 Generator 并验证
+	gen, err := NewGenerator(token.Method, secret)
+	if err != nil {
+		return nil, err
+	}
+
+	return gen.Verify(tokenString)
+}
+
 // Generate 生成 Token
 func (g *Generator) Generate(claims *Claims) (string, error) {
 	now := time.Now().Unix()

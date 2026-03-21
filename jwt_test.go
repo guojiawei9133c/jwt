@@ -429,3 +429,110 @@ func TestDecodeThenVerify(t *testing.T) {
 		t.Errorf("Subject = %v, want %v", verified.Subject, claims.Subject)
 	}
 }
+
+func TestGenerateWithKey(t *testing.T) {
+	store := NewMemoryKeyStore()
+	gen, _ := NewGenerator(HS256, []byte("dummy")) // method reference
+
+	claims := &Claims{
+		Issuer:   "test-app",
+		Subject:  "user123",
+		ID:       "unique-jti-123",
+		ExpireAt: time.Now().Add(1 * time.Hour).Unix(),
+	}
+
+	// Generate token with per-jti key
+	token, err := GenerateWithKey(store, gen, claims, GenerateHMACKey256)
+	if err != nil {
+		t.Fatalf("GenerateWithKey failed: %v", err)
+	}
+
+	// Verify key was stored
+	secret, ok := store.Get("unique-jti-123")
+	if !ok {
+		t.Fatal("Key was not stored in KeyStore")
+	}
+	if len(secret) != 32 {
+		t.Errorf("Key size = %v, want 32", len(secret))
+	}
+
+	// Verify token using KeyStore
+	verified, err := VerifyWithKeyStore(token, store)
+	if err != nil {
+		t.Fatalf("VerifyWithKeyStore failed: %v", err)
+	}
+
+	if verified.Subject != claims.Subject {
+		t.Errorf("Subject = %v, want %v", verified.Subject, claims.Subject)
+	}
+}
+
+func TestGenerateWithKeyAndTTL(t *testing.T) {
+	store := NewMemoryKeyStore()
+	gen, _ := NewGenerator(HS256, []byte("dummy"))
+
+	claims := &Claims{
+		Issuer:   "test-app",
+		Subject:  "user456",
+		ID:       "expiring-jti",
+		ExpireAt: time.Now().Add(1 * time.Hour).Unix(),
+	}
+
+	// Generate token with 100ms TTL
+	token, err := GenerateWithKeyAndTTL(store, gen, claims, GenerateHMACKey256, 100*time.Millisecond)
+	if err != nil {
+		t.Fatalf("GenerateWithKeyAndTTL failed: %v", err)
+	}
+
+	// Should verify immediately
+	_, err = VerifyWithKeyStore(token, store)
+	if err != nil {
+		t.Fatalf("VerifyWithKeyStore failed immediately: %v", err)
+	}
+
+	// Wait for expiration
+	time.Sleep(150 * time.Millisecond)
+
+	// Should fail after expiration
+	_, err = VerifyWithKeyStore(token, store)
+	if err != ErrInvalidKey {
+		t.Errorf("Expected ErrInvalidKey after expiration, got: %v", err)
+	}
+}
+
+func TestGenerateWithKeyMissingJTI(t *testing.T) {
+	store := NewMemoryKeyStore()
+	gen, _ := NewGenerator(HS256, []byte("dummy"))
+
+	claims := &Claims{
+		Issuer:   "test-app",
+		Subject:  "user789",
+		ExpireAt: time.Now().Add(1 * time.Hour).Unix(),
+		// ID is empty
+	}
+
+	_, err := GenerateWithKey(store, gen, claims, GenerateHMACKey256)
+	if err != ErrInvalidKey {
+		t.Errorf("Expected ErrInvalidKey, got: %v", err)
+	}
+}
+
+func TestVerifyWithKeyStoreInvalidJTI(t *testing.T) {
+	store := NewMemoryKeyStore()
+	gen, _ := NewGenerator(HS256, []byte("secret"))
+
+	claims := &Claims{
+		Issuer:   "test-app",
+		Subject:  "user999",
+		ID:       "unknown-jti",
+		ExpireAt: time.Now().Add(1 * time.Hour).Unix(),
+	}
+
+	token, _ := gen.Generate(claims)
+
+	// Key not in store
+	_, err := VerifyWithKeyStore(token, store)
+	if err != ErrInvalidKey {
+		t.Errorf("Expected ErrInvalidKey, got: %v", err)
+	}
+}
