@@ -462,7 +462,8 @@ func TestParseUnverified(t *testing.T) {
 		claims := `{"sub":"user"}`
 		signature := "signature"
 
-		brokenToken := encodeBase64URL(header) + "." + encodeBase64URL(claims) + "." + signature
+		brokenToken := base64.RawURLEncoding.EncodeToString([]byte(header)) + "." +
+			base64.RawURLEncoding.EncodeToString([]byte(claims)) + "." + signature
 
 		_, err := ParseUnverified(brokenToken)
 		if err == nil {
@@ -479,7 +480,8 @@ func TestParseUnverified(t *testing.T) {
 		claims := `{"sub":"user"}`
 		signature := "signature"
 
-		brokenToken := encodeBase64URL(header) + "." + encodeBase64URL(claims) + "." + signature
+		brokenToken := base64.RawURLEncoding.EncodeToString([]byte(header)) + "." +
+			base64.RawURLEncoding.EncodeToString([]byte(claims)) + "." + signature
 
 		_, err := ParseUnverified(brokenToken)
 		if err == nil {
@@ -555,12 +557,4 @@ func TestParseUnverifiedThenVerify(t *testing.T) {
 	if !valid {
 		t.Error("VerifyJWT() returned false for valid token")
 	}
-}
-
-// Helper function to encode to base64 URL without padding
-func encodeBase64URL(data string) string {
-	encoded := base64.StdEncoding.EncodeToString([]byte(data))
-	encoded = strings.ReplaceAll(encoded, "+", "-")
-	encoded = strings.ReplaceAll(encoded, "/", "_")
-	return strings.TrimRight(encoded, "=")
 }
