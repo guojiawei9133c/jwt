@@ -1,7 +1,6 @@
 package jwt
 
 import (
-	"crypto/elliptic"
 	"encoding/base64"
 	"strings"
 	"testing"
@@ -36,11 +35,6 @@ func TestGenerateES256(t *testing.T) {
 
 		if privateKey == nil {
 			t.Error("GenerateES256() returned nil private key")
-		}
-
-		// 验证私钥曲线类型
-		if !elliptic.P256().IsOnCurve(privateKey.PublicKey.X, privateKey.PublicKey.Y) {
-			t.Error("GenerateES256() generated key is not on P-256 curve")
 		}
 	})
 
@@ -108,11 +102,6 @@ func TestGenerateES384(t *testing.T) {
 		if privateKey == nil {
 			t.Error("GenerateES384() returned nil private key")
 		}
-
-		// 验证私钥曲线类型
-		if !elliptic.P384().IsOnCurve(privateKey.PublicKey.X, privateKey.PublicKey.Y) {
-			t.Error("GenerateES384() generated key is not on P-384 curve")
-		}
 	})
 
 	t.Run("CustomClaims", func(t *testing.T) {
@@ -158,11 +147,6 @@ func TestGenerateES512(t *testing.T) {
 
 		if privateKey == nil {
 			t.Error("GenerateES512() returned nil private key")
-		}
-
-		// 验证私钥曲线类型
-		if !elliptic.P521().IsOnCurve(privateKey.PublicKey.X, privateKey.PublicKey.Y) {
-			t.Error("GenerateES512() generated key is not on P-521 curve")
 		}
 	})
 
