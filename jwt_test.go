@@ -132,12 +132,12 @@ func TestParseUnverified(t *testing.T) {
 	}
 
 	// Parse without verification
-	parsedToken, raw, err := ParseUnverified(token)
+	parsedToken, err := ParseUnverified(token)
 	if err != nil {
 		t.Fatalf("ParseUnverified() error = %v", err)
 	}
 
-	if raw != token {
+	if parsedToken.Raw != token {
 		t.Error("ParseUnverified() returned different raw token")
 	}
 
@@ -172,7 +172,7 @@ func TestParseUnverifiedInvalidToken(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, _, err := ParseUnverified(tt.token)
+			_, err := ParseUnverified(tt.token)
 			if err == nil {
 				t.Error("ParseUnverified() should return error for invalid token")
 			}
@@ -196,7 +196,7 @@ func TestParseUnverifiedThenVerify(t *testing.T) {
 	}
 
 	// Phase 2: Parse without verification to get issuer
-	parsedToken, _, err := ParseUnverified(token)
+	parsedToken, err := ParseUnverified(token)
 	if err != nil {
 		t.Fatalf("ParseUnverified() error = %v", err)
 	}
@@ -216,7 +216,7 @@ func TestParseUnverifiedThenVerify(t *testing.T) {
 	// For this test, we use the privateKey we already have
 
 	// Phase 3: Verify signature
-	valid, err := VerifyJWT(token, &privateKey.PublicKey)
+	valid, err := VerifyJWT(parsedToken.Raw, &privateKey.PublicKey)
 	if err != nil {
 		t.Fatalf("VerifyJWT() error = %v", err)
 	}

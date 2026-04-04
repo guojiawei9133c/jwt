@@ -12,53 +12,54 @@ import (
 
 // ParseUnverified 解析 JWT token 但不验证签名
 // 性能最佳，适用于需要先读取 claims 信息再决定如何验证的场景
-// 返回解析后的 token 对象、原始 token 字符串和可能的错误
+// 返回解析后的 token 对象和可能的错误
 //
 // 注意：此方法不验证签名，请勿直接信任解析出的 claims
 // 典型用法：
-//   token, raw, _ := jwt.ParseUnverified(tokenString)
+//   token, _ := jwt.ParseUnverified(tokenString)
 //   // 根据 token.Claims 获取信息，例如 issuer
 //   issuer := token.Claims.(jwt.MapClaims)["iss"]
 //   // 然后使用对应的密钥验证签名
-func ParseUnverified(tokenString string) (*jwt.Token, string, error) {
+//   valid, _ := jwt.VerifyJWT(token.Raw, &publicKey)
+func ParseUnverified(tokenString string) (*jwt.Token, error) {
 	parts := strings.Split(tokenString, ".")
 	if len(parts) != 3 {
-		return nil, "", fmt.Errorf("token contains an invalid number of segments")
+		return nil, fmt.Errorf("token contains an invalid number of segments")
 	}
 
 	// 解码 header
 	headerJSON, err := base64.RawURLEncoding.DecodeString(parts[0])
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to decode header: %w", err)
+		return nil, fmt.Errorf("failed to decode header: %w", err)
 	}
 
 	// 解码 claims
 	claimsJSON, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to decode claims: %w", err)
+		return nil, fmt.Errorf("failed to decode claims: %w", err)
 	}
 
 	// 解析 claims
 	var claims jwt.MapClaims
 	if err := json.Unmarshal(claimsJSON, &claims); err != nil {
-		return nil, "", fmt.Errorf("failed to parse claims: %w", err)
+		return nil, fmt.Errorf("failed to parse claims: %w", err)
 	}
 
 	// 解析 header
 	var header map[string]interface{}
 	if err := json.Unmarshal(headerJSON, &header); err != nil {
-		return nil, "", fmt.Errorf("failed to parse header: %w", err)
+		return nil, fmt.Errorf("failed to parse header: %w", err)
 	}
 
 	// 从 header 获取签名算法
 	alg, ok := header["alg"].(string)
 	if !ok {
-		return nil, "", fmt.Errorf("missing or invalid alg in header")
+		return nil, fmt.Errorf("missing or invalid alg in header")
 	}
 
 	method := jwt.GetSigningMethod(alg)
 	if method == nil {
-		return nil, "", fmt.Errorf("unsupported signing algorithm: %s", alg)
+		return nil, fmt.Errorf("unsupported signing algorithm: %s", alg)
 	}
 
 	// 创建 Token 对象（不验证签名）
@@ -70,7 +71,7 @@ func ParseUnverified(tokenString string) (*jwt.Token, string, error) {
 		Signature: []byte(parts[2]),
 	}
 
-	return token, tokenString, nil
+	return token, nil
 }
 
 func VerifyJWT(
