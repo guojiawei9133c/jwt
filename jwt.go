@@ -44,18 +44,30 @@ func ParseUnverified(tokenString string) (*jwt.Token, string, error) {
 		return nil, "", fmt.Errorf("failed to parse claims: %w", err)
 	}
 
+	// 解析 header
+	var header map[string]interface{}
+	if err := json.Unmarshal(headerJSON, &header); err != nil {
+		return nil, "", fmt.Errorf("failed to parse header: %w", err)
+	}
+
+	// 从 header 获取签名算法
+	alg, ok := header["alg"].(string)
+	if !ok {
+		return nil, "", fmt.Errorf("missing or invalid alg in header")
+	}
+
+	method := jwt.GetSigningMethod(alg)
+	if method == nil {
+		return nil, "", fmt.Errorf("unsupported signing algorithm: %s", alg)
+	}
+
 	// 创建 Token 对象（不验证签名）
 	token := &jwt.Token{
 		Raw:       tokenString,
-		Method:    jwt.GetSigningMethod(jwt.SigningMethodES256.Alg()),
-		Header:    nil,
+		Method:    method,
+		Header:    header,
 		Claims:    claims,
 		Signature: []byte(parts[2]),
-	}
-
-	// 解析 header
-	if err := json.Unmarshal(headerJSON, &token.Header); err != nil {
-		return nil, "", fmt.Errorf("failed to parse header: %w", err)
 	}
 
 	return token, tokenString, nil
