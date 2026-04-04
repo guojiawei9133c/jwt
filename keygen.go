@@ -36,6 +36,70 @@ func GenerateECDSAKeyP521() (*ecdsa.PrivateKey, error) {
 	return privateKey, nil
 }
 
+// PublicKeyToBytes 将 ECDSA 公钥转换为字节
+func PublicKeyToBytes(publicKey *ecdsa.PublicKey) ([]byte, error) {
+	bytes, err := x509.MarshalPKIXPublicKey(publicKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal public key: %w", err)
+	}
+	return bytes, nil
+}
+
+// BytesToPublicKey 将字节转换为 ECDSA 公钥
+func BytesToPublicKey(bytes []byte) (*ecdsa.PublicKey, error) {
+	pub, err := x509.ParsePKIXPublicKey(bytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse public key: %w", err)
+	}
+
+	publicKey, ok := pub.(*ecdsa.PublicKey)
+	if !ok {
+		return nil, fmt.Errorf("not an ECDSA public key")
+	}
+
+	return publicKey, nil
+}
+
+// PublicKeyToPEM 将 ECDSA 公钥转换为 PEM 格式
+func PublicKeyToPEM(publicKey *ecdsa.PublicKey) ([]byte, error) {
+	bytes, err := x509.MarshalPKIXPublicKey(publicKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal public key: %w", err)
+	}
+
+	pemBlock := &pem.Block{
+		Type:  "PUBLIC KEY",
+		Bytes: bytes,
+	}
+
+	pemBytes := pem.EncodeToMemory(pemBlock)
+	return pemBytes, nil
+}
+
+// PEMToPublicKey 将 PEM 格式转换为 ECDSA 公钥
+func PEMToPublicKey(pemBytes []byte) (*ecdsa.PublicKey, error) {
+	block, _ := pem.Decode(pemBytes)
+	if block == nil {
+		return nil, fmt.Errorf("failed to decode PEM block")
+	}
+
+	if block.Type != "PUBLIC KEY" {
+		return nil, fmt.Errorf("invalid PEM block type: %s", block.Type)
+	}
+
+	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse public key: %w", err)
+	}
+
+	publicKey, ok := pub.(*ecdsa.PublicKey)
+	if !ok {
+		return nil, fmt.Errorf("not an ECDSA public key")
+	}
+
+	return publicKey, nil
+}
+
 func PrivateKeyToBytes(privateKey *ecdsa.PrivateKey) ([]byte, error) {
 	bytes, err := x509.MarshalECPrivateKey(privateKey)
 	if err != nil {

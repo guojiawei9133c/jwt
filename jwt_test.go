@@ -558,3 +558,200 @@ func TestParseUnverifiedThenVerify(t *testing.T) {
 		t.Error("VerifyJWT() returned false for valid token")
 	}
 }
+
+func TestSignES256(t *testing.T) {
+	privateKey, err := GenerateECDSAKeyP256()
+	if err != nil {
+		t.Fatalf("GenerateECDSAKeyP256() error = %v", err)
+	}
+
+	claims := jwt.MapClaims{
+		"iss": "test-issuer",
+		"sub": "user123",
+		"exp": 9999999999,
+	}
+
+	token, err := SignES256(claims, privateKey)
+	if err != nil {
+		t.Fatalf("SignES256() error = %v", err)
+	}
+
+	if token == "" {
+		t.Error("SignES256() returned empty token")
+	}
+
+	// Verify the token
+	valid, err := VerifyJWT(token, &privateKey.PublicKey)
+	if err != nil {
+		t.Fatalf("VerifyJWT() error = %v", err)
+	}
+
+	if !valid {
+		t.Error("SignES256() produced invalid token")
+	}
+}
+
+func TestSignES384(t *testing.T) {
+	privateKey, err := GenerateECDSAKeyP384()
+	if err != nil {
+		t.Fatalf("GenerateECDSAKeyP384() error = %v", err)
+	}
+
+	claims := jwt.MapClaims{
+		"iss": "test-issuer",
+		"sub": "user123",
+		"exp": 9999999999,
+	}
+
+	token, err := SignES384(claims, privateKey)
+	if err != nil {
+		t.Fatalf("SignES384() error = %v", err)
+	}
+
+	if token == "" {
+		t.Error("SignES384() returned empty token")
+	}
+
+	// Verify the token
+	valid, err := VerifyJWT(token, &privateKey.PublicKey)
+	if err != nil {
+		t.Fatalf("VerifyJWT() error = %v", err)
+	}
+
+	if !valid {
+		t.Error("SignES384() produced invalid token")
+	}
+}
+
+func TestSignES512(t *testing.T) {
+	privateKey, err := GenerateECDSAKeyP521()
+	if err != nil {
+		t.Fatalf("GenerateECDSAKeyP521() error = %v", err)
+	}
+
+	claims := jwt.MapClaims{
+		"iss": "test-issuer",
+		"sub": "user123",
+		"exp": 9999999999,
+	}
+
+	token, err := SignES512(claims, privateKey)
+	if err != nil {
+		t.Fatalf("SignES512() error = %v", err)
+	}
+
+	if token == "" {
+		t.Error("SignES512() returned empty token")
+	}
+
+	// Verify the token
+	valid, err := VerifyJWT(token, &privateKey.PublicKey)
+	if err != nil {
+		t.Fatalf("VerifyJWT() error = %v", err)
+	}
+
+	if !valid {
+		t.Error("SignES512() produced invalid token")
+	}
+}
+
+func TestIsExpired(t *testing.T) {
+	t.Run("Expired token", func(t *testing.T) {
+		claims := jwt.MapClaims{
+			"iss": "test-issuer",
+			"sub": "user123",
+			"exp": float64(time.Now().Add(-1 * time.Hour).Unix()), // 已过期
+		}
+
+		token, _, err := GenerateES256(claims)
+		if err != nil {
+			t.Fatalf("GenerateES256() error = %v", err)
+		}
+
+		parsedToken, err := ParseUnverified(token)
+		if err != nil {
+			t.Fatalf("ParseUnverified() error = %v", err)
+		}
+
+		expired, err := IsExpired(parsedToken)
+		if err != nil {
+			t.Fatalf("IsExpired() error = %v", err)
+		}
+
+		if !expired {
+			t.Error("IsExpired() returned false for expired token")
+		}
+	})
+
+	t.Run("Valid token", func(t *testing.T) {
+		claims := jwt.MapClaims{
+			"iss": "test-issuer",
+			"sub": "user123",
+			"exp": float64(time.Now().Add(24 * time.Hour).Unix()), // 未过期
+		}
+
+		token, _, err := GenerateES256(claims)
+		if err != nil {
+			t.Fatalf("GenerateES256() error = %v", err)
+		}
+
+		parsedToken, err := ParseUnverified(token)
+		if err != nil {
+			t.Fatalf("ParseUnverified() error = %v", err)
+		}
+
+		expired, err := IsExpired(parsedToken)
+		if err != nil {
+			t.Fatalf("IsExpired() error = %v", err)
+		}
+
+		if expired {
+			t.Error("IsExpired() returned true for valid token")
+		}
+	})
+
+	t.Run("Token without expiration", func(t *testing.T) {
+		claims := jwt.MapClaims{
+			"iss": "test-issuer",
+			"sub": "user123",
+			// 没有 exp 字段
+		}
+
+		token, _, err := GenerateES256(claims)
+		if err != nil {
+			t.Fatalf("GenerateES256() error = %v", err)
+		}
+
+		parsedToken, err := ParseUnverified(token)
+		if err != nil {
+			t.Fatalf("ParseUnverified() error = %v", err)
+		}
+
+		expired, err := IsExpired(parsedToken)
+		if err != nil {
+			t.Fatalf("IsExpired() error = %v", err)
+		}
+
+		if expired {
+			t.Error("IsExpired() returned true for token without expiration")
+		}
+	})
+}
+
+func TestTokenLengthValidation(t *testing.T) {
+	t.Run("Empty token", func(t *testing.T) {
+		_, err := ParseUnverified("")
+		if err == nil {
+			t.Error("ParseUnverified() should return error for empty token")
+		}
+	})
+
+	t.Run("Oversized token", func(t *testing.T) {
+		// Create a token larger than maxTokenLength (10KB)
+		largeToken := strings.Repeat("a", 11*1024)
+		_, err := ParseUnverified(largeToken + ".signature")
+		if err == nil {
+			t.Error("ParseUnverified() should return error for oversized token")
+		}
+	})
+}

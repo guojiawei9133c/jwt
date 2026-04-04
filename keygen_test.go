@@ -293,3 +293,136 @@ func TestGenerateAllCurves(t *testing.T) {
 		})
 	}
 }
+
+func TestPublicKeyConversion(t *testing.T) {
+	privateKey, err := GenerateECDSAKeyP256()
+	if err != nil {
+		t.Fatalf("GenerateECDSAKeyP256() error = %v", err)
+	}
+
+	publicKey := &privateKey.PublicKey
+
+	t.Run("PublicKeyToBytes and BytesToPublicKey", func(t *testing.T) {
+		// 转换为字节
+		bytes, err := PublicKeyToBytes(publicKey)
+		if err != nil {
+			t.Fatalf("PublicKeyToBytes() error = %v", err)
+		}
+
+		if len(bytes) == 0 {
+			t.Error("PublicKeyToBytes() returned empty bytes")
+		}
+
+		// 从字节恢复
+		restoredKey, err := BytesToPublicKey(bytes)
+		if err != nil {
+			t.Fatalf("BytesToPublicKey() error = %v", err)
+		}
+
+		if restoredKey == nil {
+			t.Error("BytesToPublicKey() returned nil key")
+		}
+
+		// 验证密钥相同
+		if !publicKey.Equal(restoredKey) {
+			t.Error("PublicKeyToBytes/BytesToPublicKey round trip failed")
+		}
+	})
+
+	t.Run("PublicKeyToPEM and PEMToPublicKey", func(t *testing.T) {
+		// 转换为 PEM
+		pemBytes, err := PublicKeyToPEM(publicKey)
+		if err != nil {
+			t.Fatalf("PublicKeyToPEM() error = %v", err)
+		}
+
+		if len(pemBytes) == 0 {
+			t.Error("PublicKeyToPEM() returned empty bytes")
+		}
+
+		// 验证 PEM 格式
+		pemString := string(pemBytes)
+		if !strings.Contains(pemString, "-----BEGIN PUBLIC KEY-----") {
+			t.Error("PublicKeyToPEM() missing PEM header")
+		}
+
+		if !strings.Contains(pemString, "-----END PUBLIC KEY-----") {
+			t.Error("PublicKeyToPEM() missing PEM footer")
+		}
+
+		// 从 PEM 恢复
+		restoredKey, err := PEMToPublicKey(pemBytes)
+		if err != nil {
+			t.Fatalf("PEMToPublicKey() error = %v", err)
+		}
+
+		if restoredKey == nil {
+			t.Error("PEMToPublicKey() returned nil key")
+		}
+
+		// 验证密钥相同
+		if !publicKey.Equal(restoredKey) {
+			t.Error("PublicKeyToPEM/PEMToPublicKey round trip failed")
+		}
+	})
+
+	t.Run("PublicKeyToPEM invalid input", func(t *testing.T) {
+		_, err := PEMToPublicKey([]byte("invalid pem data"))
+		if err == nil {
+			t.Error("PEMToPublicKey() should return error for invalid PEM")
+		}
+	})
+
+	t.Run("BytesToPublicKey invalid input", func(t *testing.T) {
+		_, err := BytesToPublicKey([]byte("invalid data"))
+		if err == nil {
+			t.Error("BytesToPublicKey() should return error for invalid data")
+		}
+	})
+}
+
+func TestPublicKeyPEMRoundTrip(t *testing.T) {
+	// 测试所有曲线的公钥 PEM 转换
+	tests := []struct {
+		name    string
+		genFunc func() (*ecdsa.PrivateKey, error)
+	}{
+		{"P256", GenerateECDSAKeyP256},
+		{"P384", GenerateECDSAKeyP384},
+		{"P521", GenerateECDSAKeyP521},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			privateKey, err := tt.genFunc()
+			if err != nil {
+				t.Fatalf("%s() error = %v", tt.name, err)
+			}
+
+			publicKey := &privateKey.PublicKey
+
+			// 转换为 PEM
+			pemBytes1, err := PublicKeyToPEM(publicKey)
+			if err != nil {
+				t.Fatalf("PublicKeyToPEM() error = %v", err)
+			}
+
+			// 恢复密钥
+			restoredKey, err := PEMToPublicKey(pemBytes1)
+			if err != nil {
+				t.Fatalf("PEMToPublicKey() error = %v", err)
+			}
+
+			// 再转换一次 PEM
+			pemBytes2, err := PublicKeyToPEM(restoredKey)
+			if err != nil {
+				t.Fatalf("PublicKeyToPEM() second call error = %v", err)
+			}
+
+			// 验证两次转换结果相同
+			if string(pemBytes1) != string(pemBytes2) {
+				t.Errorf("%s() PEM round trip failed", tt.name)
+			}
+		})
+	}
+}

@@ -1,16 +1,24 @@
-# JWT - Go JWT Library
+# JWT Library for Go
 
-A simple and lightweight JWT (JSON Web Token) library for Go.
+A lightweight, secure JWT (JSON Web Token) library focusing on ECDSA signatures with practical utilities for production use.
+
+## Why This Library?
+
+**Design Philosophy for AI and Developers:**
+
+1. **Explicit Security**: ECDSA by default (not HMAC), because asymmetric crypto is safer for distributed systems
+2. **Two-Phase Verification**: `ParseUnverified` lets you read claims first (to identify issuer/tenant), then verify with the correct key
+3. **No Hidden Magic**: All key operations are explicit - you control key generation, storage, and rotation
+4. **Production-Ready**: Includes PEM export/import, Bearer token extraction, and proper error handling
 
 ## Features
 
-- **Multiple Signing Algorithms**: HS256, HS384, HS512 (HMAC) and ES256 (ECDSA)
-- **Key Generation**: Built-in utilities for generating HMAC and ECDSA keys
-- **Token Generation**: Create JWT tokens with custom claims
-- **Token Verification**: Validate and parse JWT tokens
-- **Expiration Handling**: Built-in expiration and not-before validation
-- **Custom Claims**: Support for custom data in claims
-- **PEM Export/Import**: Save and load ECDSA keys in PEM format
+- ✅ **ECDSA Signing**: ES256, ES384, ES512 (P-256, P-384, P-521 curves)
+- ✅ **Key Generation**: Built-in secure ECDSA key generation
+- ✅ **Two-Phase Verification**: Parse without verification to identify issuer, then verify with correct key
+- ✅ **PEM Format Support**: Export/import keys in standard PEM format
+- ✅ **Bearer Token Extraction**: Parse `Authorization: Bearer <token>` headers
+- ✅ **Type-Safe API**: Full type safety with generics and clear error messages
 
 ## Installation
 
@@ -18,90 +26,201 @@ A simple and lightweight JWT (JSON Web Token) library for Go.
 go get github.com/guojiawei9133c/jwt
 ```
 
-## Key Generation
+## Quick Start
 
-> Use the built-in key generation utilities to create secure keys for JWT signing.
-
-### Generate HMAC Secret Key
-
-```go
-package main
-
-import (
-    "encoding/hex"
-    "fmt"
-    "github.com/guojiawei9133c/jwt"
-)
-
-func main() {
-    // Generate HMAC key for HS256
-    key256, err := jwt.GenerateHMACKey256()
-    if err != nil {
-        panic(err)
-    }
-
-    // Generate HMAC key for HS384
-    key384, err := jwt.GenerateHMACKey384()
-    if err != nil {
-        panic(err)
-    }
-
-    // Generate HMAC key for HS512
-    key512, err := jwt.GenerateHMACKey512()
-    if err != nil {
-        panic(err)
-    }
-
-    // Use directly with generator
-    gen, err := jwt.NewGenerator(jwt.HS256, key256)
-    // ...
-
-    // For storage/display, encode as needed
-    keyHex := hex.EncodeToString(key256)
-    fmt.Println("HMAC Key (Hex):", keyHex)
-
-    // Or base64
-    // keyBase64 := base64.StdEncoding.EncodeToString(key256)
-}
-```
-
-### Generate ECDSA Key Pair
+### 1. Generate and Sign a Token (ECDSA)
 
 ```go
 package main
 
 import (
     "fmt"
+    "time"
     "github.com/guojiawei9133c/jwt"
 )
 
 func main() {
-    // Generate ECDSA key (P256 for ES256)
-    priKey, err := jwt.GenerateECDSAKeyP256()
+    // Define your claims (use any type, standard MapClaims works)
+    claims := jwt.MapClaims{
+        "iss": "my-app",
+        "sub": "user123",
+        "exp": time.Now().Add(24 * time.Hour).Unix(),
+        "role": "admin",
+    }
+
+    // Generate token with ES256 (automatically generates P-256 key pair)
+    token, privateKey, err := jwt.GenerateES256(claims)
     if err != nil {
         panic(err)
     }
 
-    // Export to PEM format
-    privPEM, err := jwt.ExportPrivateKeyPEM(priKey)
-    if err != nil {
-        panic(err)
-    }
-    fmt.Println("Private Key:\n", privPEM)
-
-    pubPEM, err := jwt.ExportPublicKeyPEM(&priKey.PublicKey)
-    if err != nil {
-        panic(err)
-    }
-    fmt.Println("Public Key:\n", pubPEM)
-
-    // Save to files
-    // os.WriteFile("private.pem", []byte(privPEM), 0600)
-    // os.WriteFile("public.pem", []byte(pubPEM), 0644)
+    fmt.Println("Token:", token)
+    // Save privateKey for verification!
 }
 ```
 
-### Load ECDSA Key from PEM
+### 1.5. Sign with Your Existing Key
+
+```go
+package main
+
+import (
+    "fmt"
+    "time"
+    "github.com/guojiawei9133c/jwt"
+)
+
+func main() {
+    // Use your existing private key
+    privateKey := loadYourPrivateKey() // Your implementation
+
+    claims := jwt.MapClaims{
+        "iss": "my-app",
+        "sub": "user123",
+        "exp": time.Now().Add(24 * time.Hour).Unix(),
+        "role": "admin",
+    }
+
+    // Sign with your existing key (no key generation)
+    token, err := jwt.SignES256(claims, privateKey)
+    if err != nil {
+        panic(err)
+    }
+
+    fmt.Println("Token:", token)
+}
+```
+
+### 2. Verify a Token
+
+```go
+package main
+
+import (
+    "crypto/ecdsa"
+    "fmt"
+    "github.com/guojiawei9133c/jwt"
+)
+
+func verifyToken(tokenString string, publicKey *ecdsa.PublicKey) error {
+    // Verify signature
+    valid, err := jwt.VerifyJWT(tokenString, publicKey)
+    if err != nil {
+        return err
+    }
+
+    if !valid {
+        return fmt.Errorf("invalid signature")
+    }
+
+    fmt.Println("Token is valid!")
+    return nil
+}
+```
+
+### 3. Two-Phase Verification (Multi-Tenant Systems)
+
+**Why?** In multi-tenant systems, different issuers use different keys. You need to read the issuer claim BEFORE verification to know which key to use.
+
+```go
+package main
+
+import (
+    "fmt"
+    "github.com/guojiawei9133c/jwt"
+)
+
+func verifyMultiTenantToken(tokenString string) error {
+    // Phase 1: Parse WITHOUT verification to read claims
+    token, err := jwt.ParseUnverified(tokenString)
+    if err != nil {
+        return err
+    }
+
+    // Extract issuer to lookup the correct verification key
+    claims, ok := token.Claims.(jwt.MapClaims)
+    if !ok {
+        return fmt.Errorf("invalid claims type")
+    }
+    issuer, ok := claims["iss"].(string)
+    if !ok {
+        return fmt.Errorf("missing or invalid issuer claim")
+    }
+    fmt.Println("Token from issuer:", issuer)
+
+    // Phase 2: Lookup the public key for this issuer
+    publicKey := lookupPublicKey(issuer) // Your implementation
+
+    // Phase 3: Verify with the correct key
+    valid, err := jwt.VerifyJWT(tokenString, publicKey)
+    if err != nil {
+        return err
+    }
+
+    if !valid {
+        return fmt.Errorf("invalid signature for issuer: %s", issuer)
+    }
+
+    fmt.Printf("Verified token from %s\n", issuer)
+    return nil
+}
+```
+
+## Key Management
+
+### Generate ECDSA Keys
+
+```go
+package main
+
+import (
+    "fmt"
+    "github.com/guojiawei9133c/jwt"
+)
+
+func main() {
+    // Generate P-256 key (for ES256)
+    privateKey, err := jwt.GenerateECDSAKeyP256()
+    if err != nil {
+        panic(err)
+    }
+
+    // Get public key
+    publicKey := &privateKey.PublicKey
+
+    fmt.Println("Generated P-256 key pair")
+}
+```
+
+### Export Keys to PEM
+
+```go
+package main
+
+import (
+    "fmt"
+    "os"
+    "github.com/guojiawei9133c/jwt"
+)
+
+func main() {
+    privateKey, _ := jwt.GenerateECDSAKeyP256()
+
+    // Export to PEM format (for storage)
+    privPEM, err := jwt.PrivateKeyToPEM(privateKey)
+    if err != nil {
+        panic(err)
+    }
+
+    fmt.Println("Private Key (PEM):")
+    fmt.Println(string(privPEM))
+
+    // Save to file
+    os.WriteFile("private.pem", privPEM, 0600)
+}
+```
+
+### Load Keys from PEM
 
 ```go
 package main
@@ -113,268 +232,154 @@ import (
 
 func main() {
     // Read from file
-    privPEM, _ := os.ReadFile("private.pem")
-    pubPEM, _ := os.ReadFile("public.pem")
-
-    // Parse keys
-    priKey, err := jwt.ParseECDSAFromPEM(privPEM)
+    pemData, err := os.ReadFile("private.pem")
     if err != nil {
         panic(err)
     }
 
-    pubKey, err := jwt.ParsePublicKeyFromPEM(pubPEM)
+    // Parse PEM
+    privateKey, err := jwt.PEMToPrivateKey(pemData)
     if err != nil {
         panic(err)
     }
 
-    // Use with generator
-    gen, err := jwt.NewGeneratorWithECDSA(jwt.ES256, priKey)
-    if err != nil {
-        panic(err)
-    }
-    gen.SetPublicKey(pubKey)
-    // ...
+    // Use privateKey...
 }
 ```
 
-## Usage
+## HTTP Integration
 
-### HMAC Signing (HS256/HS384/HS512)
+### Extract Bearer Token from Authorization Header
 
 ```go
 package main
 
 import (
-    "fmt"
-    "time"
+    "net/http"
     "github.com/guojiawei9133c/jwt"
 )
 
-func main() {
-    // Generate a secure key or use existing key
-    secret, err := jwt.GenerateHMACKey256()
-    if err != nil {
-        panic(err)
-    }
+func authMiddleware(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        // Extract token from "Authorization: Bearer <token>" header
+        tokenString, err := jwt.ExtractBearerToken(r.Header.Get("Authorization"))
+        if err != nil {
+            http.Error(w, "Invalid authorization header", http.StatusUnauthorized)
+            return
+        }
 
-    // Create generator with HMAC
-    gen, err := jwt.NewGenerator(jwt.HS256, secret)
-    if err != nil {
-        panic(err)
-    }
+        // Verify token
+        // ... (use your verification logic here)
 
-    // Create claims
-    claims := &jwt.Claims{
-        Issuer:   "my-app",
-        Subject:  "user123",
-        Audience: "my-api",
-        ExpireAt: time.Now().Add(24 * time.Hour).Unix(),
-        CustomData: map[string]interface{}{
-            "role": "admin",
-            "name": "John Doe",
-        },
-    }
-
-    // Generate token
-    token, err := gen.Generate(claims)
-    if err != nil {
-        panic(err)
-    }
-    fmt.Println("Token:", token)
-
-    // Verify token
-    verifiedClaims, err := gen.Verify(token)
-    if err != nil {
-        panic(err)
-    }
-    fmt.Printf("Verified: %+v\n", verifiedClaims)
+        next.ServeHTTP(w, r)
+    })
 }
 ```
-
-### ECDSA Signing (ES256)
-
-```go
-package main
-
-import (
-    "github.com/guojiawei9133c/jwt"
-)
-
-func main() {
-    // Generate ECDSA key
-    priKey, err := jwt.GenerateECDSAKeyP256()
-    if err != nil {
-        panic(err)
-    }
-
-    // Create generator with ECDSA
-    gen, err := jwt.NewGeneratorWithECDSA(jwt.ES256, priKey)
-    if err != nil {
-        panic(err)
-    }
-
-    // Set public key for verification
-    gen.SetPublicKey(&priKey.PublicKey)
-
-    // Use the same as HMAC example...
-}
-```
-
-### Verifying Bearer Token (HTTP Authorization Header)
-
-```go
-package main
-
-import (
-    "fmt"
-    "time"
-    "github.com/guojiawei9133c/jwt"
-)
-
-func main() {
-    // Setup generator
-    secret, _ := jwt.GenerateHMACKey256()
-    gen, _ := jwt.NewGenerator(jwt.HS256, secret)
-
-    // Simulate Authorization header from HTTP request
-    authorization := "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-
-    // Verify Bearer token
-    claims, err := gen.VerifyBearer(authorization)
-    if err != nil {
-        // Handle invalid token (401 Unauthorized)
-        panic(err)
-    }
-
-    fmt.Printf("Authenticated user: %s\n", claims.Subject)
-}
-```
-
-### Two-Phase Verification (Multi-Tenant Scenario)
-
-When you need to identify the issuer first before looking up the verification key:
-
-```go
-package main
-
-import (
-    "fmt"
-    "github.com/guojiawei9133c/jwt"
-)
-
-// Simulated key store for multiple issuers
-var keyStore = map[string][]byte{
-    "app1": []byte("secret-for-app1"),
-    "app2": []byte("secret-for-app2"),
-}
-
-func verifyToken(tokenString string) (*jwt.Claims, error) {
-    // Phase 1: Decode without verification to identify issuer
-    token, err := jwt.Decode(tokenString)
-    if err != nil {
-        return nil, err
-    }
-
-    issuer := token.Claims.Issuer
-    fmt.Printf("Token from issuer: %s\n", issuer)
-
-    // Phase 2: Lookup key based on issuer
-    secret, ok := keyStore[issuer]
-    if !ok {
-        return nil, fmt.Errorf("unknown issuer: %s", issuer)
-    }
-
-    // Phase 3: Verify with correct key
-    gen, err := jwt.NewGenerator(token.Header["alg"].(jwt.SigningMethod), secret)
-    if err != nil {
-        return nil, err
-    }
-
-    return gen.Verify(token.Raw)
-}
-
-func main() {
-    // Token from app1
-    gen1, _ := jwt.NewGenerator(jwt.HS256, keyStore["app1"])
-    claims := &jwt.Claims{
-        Issuer:   "app1",
-        Subject:  "user123",
-        ExpireAt: 9999999999,
-    }
-    token, _ := gen1.Generate(claims)
-
-    // Verify using two-phase approach
-    verified, err := verifyToken(token)
-    if err != nil {
-        panic(err)
-    }
-    fmt.Printf("Verified: %s\n", verified.Subject)
-}
-```
-
----
 
 ## Complete Examples
 
-### Example 1: HMAC JWT - Complete Workflow
+### Example 1: Token Generation and Verification Workflow
 
 ```go
 package main
 
 import (
-    "encoding/hex"
     "fmt"
     "time"
     "github.com/guojiawei9133c/jwt"
 )
 
 func main() {
-    // Step 1: Generate a secure HMAC key
-    secretKey, err := jwt.GenerateHMACKey256()
+    // Step 1: Generate key pair (do this once, store securely)
+    privateKey, err := jwt.GenerateECDSAKeyP256()
     if err != nil {
         panic(err)
     }
-    fmt.Println("Generated Secret Key (Hex):", hex.EncodeToString(secretKey))
+    publicKey := &privateKey.PublicKey
 
-    // Step 2: Create JWT generator
-    gen, err := jwt.NewGenerator(jwt.HS256, secretKey)
-    if err != nil {
-        panic(err)
+    // Step 2: Create claims
+    claims := jwt.MapClaims{
+        "iss": "my-auth-service",
+        "sub": "user-12345",
+        "exp": time.Now().Add(24 * time.Hour).Unix(),
+        "role": "admin",
+        "email": "user@example.com",
     }
 
-    // Step 3: Create claims with user data
-    claims := &jwt.Claims{
-        Issuer:   "my-auth-service",
-        Subject:  "user-12345",
-        Audience: "my-api",
-        ExpireAt: time.Now().Add(24 * time.Hour).Unix(),
-        CustomData: map[string]interface{}{
-            "role":    "admin",
-            "email":   "user@example.com",
-            "name":    "John Doe",
-        },
-    }
-
-    // Step 4: Generate JWT token
-    token, err := gen.Generate(claims)
+    // Step 3: Generate token
+    token, _, err := jwt.GenerateES256(claims)
     if err != nil {
         panic(err)
     }
     fmt.Println("Generated Token:", token)
 
-    // Step 5: Verify and parse token
-    verifiedClaims, err := gen.Verify(token)
+    // Step 4: Verify token
+    valid, err := jwt.VerifyJWT(token, publicKey)
     if err != nil {
         panic(err)
     }
-    fmt.Printf("Verified Claims: iss=%s, sub=%s, role=%s\n",
-        verifiedClaims.Issuer,
-        verifiedClaims.Subject,
-        verifiedClaims.CustomData["role"])
+
+    if valid {
+        fmt.Println("✅ Token is valid!")
+    } else {
+        fmt.Println("❌ Token is invalid!")
+    }
 }
 ```
 
-### Example 2: ECDSA JWT - Generate, Save, Load & Use
+### Example 1.5: Using Existing Keys for Signing
+
+```go
+package main
+
+import (
+    "fmt"
+    "time"
+    "github.com/guojiawei9133c/jwt"
+)
+
+func main() {
+    // Step 1: Use your existing key pair (from environment, file, etc.)
+    privateKey := loadYourPrivateKey() // Your implementation
+    publicKey := &privateKey.PublicKey
+
+    // Step 2: Create claims
+    claims := jwt.MapClaims{
+        "iss": "my-app",
+        "sub": "user-67890",
+        "exp": time.Now().Add(1 * time.Hour).Unix(),
+        "permissions": []string{"read", "write"},
+    }
+
+    // Step 3: Sign with existing key using SignES256
+    token, err := jwt.SignES256(claims, privateKey)
+    if err != nil {
+        panic(err)
+    }
+    fmt.Println("Generated Token:", token)
+
+    // Step 4: Verify token
+    valid, err := jwt.VerifyJWT(token, publicKey)
+    if err != nil {
+        panic(err)
+    }
+
+    if valid {
+        fmt.Println("✅ Token is valid!")
+    } else {
+        fmt.Println("❌ Token is invalid!")
+    }
+}
+
+// Example: Load private key from environment or file
+func loadYourPrivateKey() *ecdsa.PrivateKey {
+    // In production, load from secure storage
+    key, _ := jwt.GenerateECDSAKeyP256()
+    return key
+}
+```
+
+### Example 1.6: Public Key Export/Import
 
 ```go
 package main
@@ -382,88 +387,182 @@ package main
 import (
     "fmt"
     "os"
-    "time"
     "github.com/guojiawei9133c/jwt"
 )
 
 func main() {
-    // Step 1: Generate ECDSA key
-    priKey, err := jwt.GenerateECDSAKeyP256()
+    // Generate key pair
+    privateKey, _ := jwt.GenerateECDSAKeyP256()
+    publicKey := &privateKey.PublicKey
+
+    // Export public key to PEM (for sharing with verification services)
+    pubPEM, err := jwt.PublicKeyToPEM(publicKey)
     if err != nil {
         panic(err)
     }
 
-    // Step 2: Export keys to PEM format
-    privPEM, err := jwt.ExportPrivateKeyPEM(priKey)
-    if err != nil {
-        panic(err)
-    }
+    // Save public key to file (can be freely distributed)
+    os.WriteFile("public.pem", pubPEM, 0644)
+    fmt.Println("Public key saved to public.pem")
+    fmt.Println(string(pubPEM))
 
-    pubPEM, err := jwt.ExportPublicKeyPEM(&priKey.PublicKey)
-    if err != nil {
-        panic(err)
-    }
-
-    // Step 3: Save keys to files (for production use)
-    os.WriteFile("private.pem", []byte(privPEM), 0600)
-    os.WriteFile("public.pem", []byte(pubPEM), 0644)
-    fmt.Println("Keys saved to private.pem and public.pem")
-
-    // Step 4: Load keys from files (simulating production)
-    privData, _ := os.ReadFile("private.pem")
+    // Import public key from PEM (for verification)
     pubData, _ := os.ReadFile("public.pem")
-
-    loadedPriKey, err := jwt.ParseECDSAFromPEM(privData)
+    loadedPublicKey, err := jwt.PEMToPublicKey(pubData)
     if err != nil {
         panic(err)
     }
 
-    pubKey, err := jwt.ParsePublicKeyFromPEM(pubData)
-    if err != nil {
-        panic(err)
-    }
-
-    // Step 5: Create JWT generator with loaded keys
-    gen, err := jwt.NewGeneratorWithECDSA(jwt.ES256, loadedPriKey)
-    if err != nil {
-        panic(err)
-    }
-    gen.SetPublicKey(pubKey)
-
-    // Step 6: Generate and verify token
-    claims := &jwt.Claims{
-        Issuer:   "secure-app",
-        Subject:  "user-67890",
-        ExpireAt: time.Now().Add(7 * 24 * time.Hour).Unix(), // 7 days
-        CustomData: map[string]interface{}{
-            "permissions": []string{"read", "write", "delete"},
-        },
-    }
-
-    token, err := gen.Generate(claims)
-    if err != nil {
-        panic(err)
-    }
-    fmt.Println("Generated Token:", token)
-
-    // Verify token
-    verifiedClaims, err := gen.Verify(token)
-    if err != nil {
-        panic(err)
-    }
-    fmt.Printf("Verified: %s has permissions: %v\n",
-        verifiedClaims.Subject,
-        verifiedClaims.CustomData["permissions"])
-
-    // Cleanup demo files
-    os.Remove("private.pem")
-    os.Remove("public.pem")
+    fmt.Printf("Successfully loaded public key: %v\n", loadedPublicKey != nil)
 }
 ```
 
-### Example 4: Per-Token Key Security (Highest Security)
+### Example 2: Multi-Tenant Authentication System
 
-For high-security scenarios where each token should have its own unique key:
+```go
+package main
+
+import (
+    "crypto/ecdsa"
+    "fmt"
+    "sync"
+    "time"
+    "github.com/guojiawei9133c/jwt"
+)
+
+// KeyStore manages public keys for different issuers
+type KeyStore struct {
+    keys map[string]*ecdsa.PublicKey
+    mu   sync.RWMutex
+}
+
+func NewKeyStore() *KeyStore {
+    return &KeyStore{
+        keys: make(map[string]*ecdsa.PublicKey),
+    }
+}
+
+func (ks *KeyStore) Add(issuer string, publicKey *ecdsa.PublicKey) {
+    ks.mu.Lock()
+    defer ks.mu.Unlock()
+    ks.keys[issuer] = publicKey
+}
+
+func (ks *KeyStore) Get(issuer string) (*ecdsa.PublicKey, bool) {
+    ks.mu.RLock()
+    defer ks.mu.RUnlock()
+    key, ok := ks.keys[issuer]
+    return key, ok
+}
+
+func main() {
+    // Setup: Initialize key store with keys for different issuers
+    keyStore := NewKeyStore()
+
+    // Add keys for app1 and app2
+    priKey1, _ := jwt.GenerateECDSAKeyP256()
+    priKey2, _ := jwt.GenerateECDSAKeyP256()
+
+    keyStore.Add("app1", &priKey1.PublicKey)
+    keyStore.Add("app2", &priKey2.PublicKey)
+
+    // Simulate receiving a token from app1
+    claims := jwt.MapClaims{
+        "iss": "app1",
+        "sub": "user123",
+        "exp": time.Now().Add(24 * time.Hour).Unix(),
+    }
+    token, _, _ := jwt.GenerateES256(claims)
+
+    // Verify the token using two-phase approach
+    // Phase 1: Parse to identify issuer
+    parsedToken, err := jwt.ParseUnverified(token)
+    if err != nil {
+        panic(err)
+    }
+
+    tokenClaims, ok := parsedToken.Claims.(jwt.MapClaims)
+    if !ok {
+        panic("invalid claims type")
+    }
+    issuer, ok := tokenClaims["iss"].(string)
+    if !ok {
+        panic("missing or invalid issuer claim")
+    }
+
+    // Phase 2: Lookup key for this issuer
+    publicKey, ok := keyStore.Get(issuer)
+    if !ok {
+        panic(fmt.Sprintf("Unknown issuer: %s", issuer))
+    }
+
+    // Phase 3: Verify with the correct key
+    valid, err := jwt.VerifyJWT(token, publicKey)
+    if err != nil {
+        panic(err)
+    }
+
+    if valid {
+        fmt.Printf("✅ Verified token from %s\n", issuer)
+    }
+}
+```
+
+### Example 3: HTTP Authentication Middleware
+
+```go
+package main
+
+import (
+    "crypto/ecdsa"
+    "net/http"
+    "github.com/guojiawei9133c/jwt"
+)
+
+// Auth middleware that validates JWT tokens
+func JWTAuth(publicKey *ecdsa.PublicKey) func(http.Handler) http.Handler {
+    return func(next http.Handler) http.Handler {
+        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+            // Extract Bearer token
+            tokenString, err := jwt.ExtractBearerToken(r.Header.Get("Authorization"))
+            if err != nil {
+                http.Error(w, "Missing or invalid authorization header", http.StatusUnauthorized)
+                return
+            }
+
+            // Verify token
+            valid, err := jwt.VerifyJWT(tokenString, publicKey)
+            if err != nil {
+                http.Error(w, "Invalid token", http.StatusUnauthorized)
+                return
+            }
+
+            if !valid {
+                http.Error(w, "Invalid signature", http.StatusUnauthorized)
+                return
+            }
+
+            // Token is valid, proceed to next handler
+            next.ServeHTTP(w, r)
+        })
+    }
+}
+
+func main() {
+    // Load your public key
+    publicKey := loadPublicKey() // Your implementation
+
+    // Use middleware
+    http.Handle("/api/protected", JWTAuth(publicKey)(http.HandlerFunc(handler)))
+    http.ListenAndServe(":8080", nil)
+}
+
+func handler(w http.ResponseWriter, r *http.Request) {
+    w.Write([]byte("Access granted!"))
+}
+```
+
+### Example 3.5: Token Expiration Check
 
 ```go
 package main
@@ -475,215 +574,207 @@ import (
 )
 
 func main() {
-    // Create key store (in production, use Redis or database)
-    store := jwt.NewMemoryKeyStore()
-    gen, _ := jwt.NewGenerator(jwt.HS256, nil) // method reference only
-
-    // Generate token with unique key per jti
-    claims := &jwt.Claims{
-        Issuer:   "secure-app",
-        Subject:  "user123",
-        ID:       "unique-token-id-" + time.Now().Format("20060102150405"),
-        ExpireAt: time.Now().Add(24 * time.Hour).Unix(),
-        CustomData: map[string]interface{}{
-            "clearance": "high",
-        },
+    // Create an expired token
+    claims := jwt.MapClaims{
+        "iss": "my-app",
+        "sub": "user123",
+        "exp": time.Now().Add(-1 * time.Hour).Unix(), // Expired 1 hour ago
     }
 
-    // Generate with per-jti key, key expires in 24 hours
-    token, err := jwt.GenerateWithKeyAndTTL(store, gen, claims, jwt.GenerateHMACKey256, 24*time.Hour)
+    token, _, _ := jwt.GenerateES256(claims)
+
+    // Parse and check expiration
+    parsedToken, err := jwt.ParseUnverified(token)
     if err != nil {
         panic(err)
     }
-    fmt.Println("Token:", token)
 
-    // Verify using KeyStore
-    verified, err := jwt.VerifyWithKeyStore(token, store)
+    expired, err := jwt.IsExpired(parsedToken)
     if err != nil {
         panic(err)
     }
-    fmt.Printf("Verified: %s has clearance %s\n", verified.Subject, verified.CustomData["clearance"])
 
-    // After verification, you can optionally delete the key
-    // store.Delete(claims.ID)
-}
-```
-
-### Example 3: CLI Tool for Key Generation
-
-```go
-package main
-
-import (
-    "encoding/base64"
-    "encoding/hex"
-    "flag"
-    "fmt"
-    "os"
-    "github.com/guojiawei9133c/jwt"
-)
-
-func main() {
-    keyType := flag.String("type", "hmac", "Key type: hmac or ecdsa")
-    size := flag.String("size", "256", "HMAC key size: 256/384/512")
-    curve := flag.String("curve", "P256", "ECDSA curve (P256/P384/P521)")
-    format := flag.String("format", "hex", "Output format: hex or base64 (HMAC only)")
-    output := flag.String("output", "", "Output file for PEM (ECDSA only)")
-    flag.Parse()
-
-    switch *keyType {
-    case "hmac":
-        var key []byte
-        var err error
-
-        switch *size {
-        case "256":
-            key, err = jwt.GenerateHMACKey256()
-        case "384":
-            key, err = jwt.GenerateHMACKey384()
-        case "512":
-            key, err = jwt.GenerateHMACKey512()
-        default:
-            fmt.Fprintf(os.Stderr, "Invalid size: %s (use 256/384/512)\n", *size)
-            os.Exit(1)
-        }
-
-        if err != nil {
-            fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-            os.Exit(1)
-        }
-
-        switch *format {
-        case "hex":
-            fmt.Println(hex.EncodeToString(key))
-        case "base64":
-            fmt.Println(base64.StdEncoding.EncodeToString(key))
-        default:
-            fmt.Fprintf(os.Stderr, "Invalid format: %s\n", *format)
-            os.Exit(1)
-        }
-
-    case "ecdsa":
-        var priKey *ecdsa.PrivateKey
-        var err error
-
-        switch *curve {
-        case "P256":
-            priKey, err = jwt.GenerateECDSAKeyP256()
-        case "P384":
-            priKey, err = jwt.GenerateECDSAKeyP384()
-        case "P521":
-            priKey, err = jwt.GenerateECDSAKeyP521()
-        default:
-            fmt.Fprintf(os.Stderr, "Invalid curve: %s (use P256/P384/P521)\n", *curve)
-            os.Exit(1)
-        }
-
-        if err != nil {
-            fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-            os.Exit(1)
-        }
-
-        privPEM, _ := jwt.ExportPrivateKeyPEM(priKey)
-        pubPEM, _ := jwt.ExportPublicKeyPEM(&priKey.PublicKey)
-
-        if *output != "" {
-            os.WriteFile(*output+".pem", []byte(privPEM), 0600)
-            os.WriteFile(*output+".pub.pem", []byte(pubPEM), 0644)
-            fmt.Printf("Keys saved to %s.pem and %s.pub.pem\n", *output, *output)
-        } else {
-            fmt.Println("----- PRIVATE KEY -----")
-            fmt.Println(privPEM)
-            fmt.Println("----- PUBLIC KEY -----")
-            fmt.Println(pubPEM)
-        }
-
-    default:
-        fmt.Fprintf(os.Stderr, "Invalid key type: %s\n", *keyType)
-        os.Exit(1)
+    if expired {
+        fmt.Println("⚠️ Token has expired!")
+    } else {
+        fmt.Println("✅ Token is still valid")
     }
 }
-```
-
-Run the CLI tool:
-```bash
-# Generate HMAC key (256 bits)
-go run main.go -type hmac -size 256
-
-# Generate HMAC key (384 bits)
-go run main.go -type hmac -size 384
-
-# Generate HMAC key (512 bits)
-go run main.go -type hmac -size 512
-
-# Generate ECDSA keys
-go run main.go -type ecdsa -curve P256 -output mykey
 ```
 
 ## API Reference
 
-### Types
+### Token Generation
 
-- `SigningMethod`: HS256, HS384, HS512, ES256
-- `Claims`: JWT claims with standard and custom fields
-- `Token`: Represents a parsed JWT token
-- `Generator`: JWT token generator and verifier
-- `KeyStore`: Interface for storing and retrieving per-token keys
+#### Auto-Generate Keys (Simplest)
 
-### Key Generation Functions
+| Function | Description | Algorithm |
+|----------|-------------|-----------|
+| `GenerateES256(claims)` | Generate JWT with ES256 (auto-generates key) | ECDSA P-256 + SHA-256 |
+| `GenerateES384(claims)` | Generate JWT with ES384 (auto-generates key) | ECDSA P-384 + SHA-384 |
+| `GenerateES512(claims)` | Generate JWT with ES512 (auto-generates key) | ECDSA P-521 + SHA-512 |
 
-- `GenerateHMACKey256() ([]byte, error)`: Generate 256-bit HMAC key (for HS256)
-- `GenerateHMACKey384() ([]byte, error)`: Generate 384-bit HMAC key (for HS384)
-- `GenerateHMACKey512() ([]byte, error)`: Generate 512-bit HMAC key (for HS512)
-- `GenerateECDSAKeyP256() (*ecdsa.PrivateKey, error)`: Generate P256 ECDSA key (for ES256)
-- `GenerateECDSAKeyP384() (*ecdsa.PrivateKey, error)`: Generate P384 ECDSA key (for ES384)
-- `GenerateECDSAKeyP521() (*ecdsa.PrivateKey, error)`: Generate P521 ECDSA key (for ES521)
-- `ExportPrivateKeyPEM(key *ecdsa.PrivateKey) (string, error)`: Export ECDSA private key to PEM format
-- `ExportPublicKeyPEM(key *ecdsa.PublicKey) (string, error)`: Export ECDSA public key to PEM format
-- `ParseECDSAFromPEM(pemData []byte) (*ecdsa.PrivateKey, error)`: Parse ECDSA private key from PEM
-- `ParsePublicKeyFromPEM(pemData []byte) (*ecdsa.PublicKey, error)`: Parse public key from PEM
+Returns: `(token string, privateKey *ecdsa.PrivateKey, error error)`
 
-### Parsing Functions
+#### Sign with Existing Keys (Advanced)
 
-- `Decode(token string) (*Token, error)`: Parse JWT token without signature verification. Returns decoded header, claims, and signature. Use for two-phase verification: decode to identify issuer, then lookup key and verify.
+| Function | Description | Algorithm |
+|----------|-------------|-----------|
+| `SignES256(claims, privateKey)` | Sign JWT with ES256 using your key | ECDSA P-256 + SHA-256 |
+| `SignES384(claims, privateKey)` | Sign JWT with ES384 using your key | ECDSA P-384 + SHA-384 |
+| `SignES512(claims, privateKey)` | Sign JWT with ES512 using your key | ECDSA P-521 + SHA-512 |
 
-### KeyStore Functions (Per-Token Key Security)
+Returns: `(token string, error error)`
 
-- `NewMemoryKeyStore() *MemoryKeyStore`: Create an in-memory key store with automatic expiration cleanup
-- `(KeyStore) Set(jti string, secret []byte)`: Store a key for the given jti
-- `(KeyStore) SetWithTTL(jti string, secret []byte, ttl time.Duration)`: Store a key with time-to-live
-- `(KeyStore) Get(jti string) ([]byte, bool)`: Retrieve a key by jti
-- `(KeyStore) Delete(jti string)`: Remove a key from storage
-- `GenerateWithKey(store KeyStore, gen *Generator, claims *Claims, keySize func() ([]byte, error)) (string, error)`: Generate token with per-jti key
-- `GenerateWithKeyAndTTL(store KeyStore, gen *Generator, claims *Claims, keySize func() ([]byte, error), ttl time.Duration) (string, error)`: Generate token with per-jti key and expiration
-- `VerifyWithKeyStore(token string, store KeyStore) (*Claims, error)`: Verify token using key from KeyStore
+### Token Verification
 
-### Generator Functions
+| Function | Description |
+|----------|-------------|
+| `VerifyJWT(token, publicKey)` | Verify ECDSA signature |
+| `IsExpired(token)` | Check if token is expired |
 
-- `NewGenerator(method SigningMethod, secret []byte) (*Generator, error)`: Create HMAC-based generator
-- `NewGeneratorWithECDSA(method SigningMethod, priKey *ecdsa.PrivateKey) (*Generator, error)`: Create ECDSA-based generator
-- `(g *Generator) Generate(claims *Claims) (string, error)`: Generate a JWT token
-- `(g *Generator) Verify(token string) (*Claims, error)`: Verify and parse a JWT token
-- `(g *Generator) VerifyBearer(authorization string) (*Claims, error)`: Verify Bearer token from Authorization header (supports "Bearer <token>" or raw token)
-- `(g *Generator) SetPublicKey(pubKey *ecdsa.PublicKey)`: Set public key for ECDSA verification
+Returns:
+- `VerifyJWT`: `(valid bool, error error)`
+- `IsExpired`: `(expired bool, error error)`
 
-### Standard Claims
+### Two-Phase Parsing
 
-- `iss`: Issuer
-- `sub`: Subject
-- `aud`: Audience
-- `exp`: Expiration time
-- `iat`: Issued at
-- `nbf`: Not before
-- `jti`: JWT ID
+| Function | Description | Use Case |
+|----------|-------------|----------|
+| `ParseUnverified(token)` | Parse JWT without verifying signature | Multi-tenant systems, key lookup |
 
-### Errors
+Returns: `(*jwt.Token, error)`
 
-- `ErrInvalidToken`: Invalid token format
-- `ErrInvalidSignature`: Signature verification failed
-- `ErrTokenExpired`: Token has expired
-- `ErrInvalidKey`: Invalid key provided
+**⚠️ Security Warning**: Claims from `ParseUnverified` are not verified. Always call `VerifyJWT` before trusting the data.
+
+### Key Generation
+
+| Function | Description | Curve |
+|----------|-------------|-------|
+| `GenerateECDSAKeyP256()` | Generate P-256 key | For ES256 |
+| `GenerateECDSAKeyP384()` | Generate P-384 key | For ES384 |
+| `GenerateECDSAKeyP521()` | Generate P-521 key | For ES512 |
+
+Returns: `(*ecdsa.PrivateKey, error)`
+
+### PEM Export/Import
+
+#### Private Key
+
+| Function | Description |
+|----------|-------------|
+| `PrivateKeyToPEM(key)` | Export private key to PEM |
+| `PEMToPrivateKey(pemData)` | Import private key from PEM |
+| `PrivateKeyToBytes(key)` | Export private key to bytes |
+| `BytesToPrivateKey(data)` | Import private key from bytes |
+
+#### Public Key
+
+| Function | Description |
+|----------|-------------|
+| `PublicKeyToPEM(key)` | Export public key to PEM |
+| `PEMToPublicKey(pemData)` | Import public key from PEM |
+| `PublicKeyToBytes(key)` | Export public key to bytes |
+| `BytesToPublicKey(data)` | Import public key from bytes |
+
+### HTTP Utilities
+
+| Function | Description |
+|----------|-------------|
+| `ExtractBearerToken(authHeader)` | Extract token from `Authorization: Bearer <token>` |
+
+## Best Practices
+
+### 1. Key Management
+
+✅ **DO**:
+- Generate keys once and store them securely
+- Use environment variables or secret management for keys
+- Use different keys for different environments (dev/staging/prod)
+- Rotate keys periodically
+
+❌ **DON'T**:
+- Generate new keys for every token (except per-token security model)
+- Commit keys to version control
+- Log private keys
+- Use the same key across all services
+
+### 2. Token Verification
+
+✅ **DO**:
+- Always verify tokens on the server side
+- Check expiration time (`exp` claim)
+- Use two-phase verification for multi-tenant systems
+
+❌ **DON'T**:
+- Trust tokens without verification
+- Use `ParseUnverified` and skip `VerifyJWT`
+- Verify tokens only on client side
+
+### 3. Security
+
+✅ **DO**:
+- Use ES256 (P-256) for most applications
+- Use ES384/ES512 for higher security requirements
+- Set appropriate expiration times
+- Include issuer (`iss`) and audience (`aud`) claims
+
+❌ **DON'T**:
+- Set expiration too far in the future
+- Store sensitive data in claims (JWTs are not encrypted!)
+- Use weak key sizes
+
+## Algorithm Selection
+
+| Algorithm | Curve | Security | Performance | Use Case |
+|-----------|-------|----------|-------------|----------|
+| ES256 | P-256 | High | Fast | Most applications |
+| ES384 | P-384 | Very High | Medium | High-security requirements |
+| ES512 | P-521 | Extremely High | Slower | Maximum security |
+
+**Recommendation**: Use ES256 (P-256) for most applications. It provides excellent security with good performance.
+
+## Error Handling
+
+```go
+import (
+    "strings"
+    "github.com/guojiawei9133c/jwt"
+)
+
+token, privateKey, err := jwt.GenerateES256(claims)
+if err != nil {
+    // Handle specific errors
+    switch {
+    case strings.Contains(err.Error(), "failed to generate"):
+        // Key generation error
+    case strings.Contains(err.Error(), "failed to sign"):
+        // Signing error
+    default:
+        // Unknown error
+    }
+    panic(err)
+}
+```
+
+## Contributing
+
+Contributions are welcome! Please ensure:
+- All tests pass: `go test ./...`
+- Code is formatted: `go fmt ./...`
+- New features include tests and documentation
 
 ## License
 
-MIT License
+MIT License - see LICENSE file for details
+
+## Why ECDSA Instead of HMAC?
+
+This library focuses on ECDSA rather than HMAC because:
+
+1. **Asymmetric Security**: Public keys can be freely distributed while private keys remain secret
+2. **Scalability**: Verify tokens without sharing secrets across services
+3. **Compromise Containment**: If a verifier is compromised, the signing key is still safe
+4. **Multi-Tenant Friendly**: Different issuers with different keys
+
+For most production systems, ECDSA is the safer choice.

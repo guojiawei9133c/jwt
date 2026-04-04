@@ -6,12 +6,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
 const (
-	jwtSegments = 3 // JWT token 由三部分组成: header.payload.signature
+	jwtSegments   = 3                 // JWT token 由三部分组成: header.payload.signature
+	maxTokenLength = 10 * 1024       // 最大 token 长度 10KB，防止 DoS 攻击
 )
 
 // ParseUnverified 解析 JWT token 但不验证签名
@@ -38,6 +40,16 @@ const (
 //	// 阶段2：使用查找到的公钥验证签名
 //	valid, _ := jwt.VerifyJWT(token.Raw, publicKey)
 func ParseUnverified(tokenString string) (*jwt.Token, error) {
+	// 验证 token 长度，防止 DoS 攻击
+	if len(tokenString) > maxTokenLength {
+		return nil, fmt.Errorf("token too large (max %d bytes)", maxTokenLength)
+	}
+
+	// 验证 token 长度，防止空 token
+	if len(tokenString) == 0 {
+		return nil, fmt.Errorf("token is empty")
+	}
+
 	parts := strings.Split(tokenString, ".")
 	if len(parts) != jwtSegments {
 		return nil, fmt.Errorf("token contains an invalid number of segments, got %d, want %d", len(parts), jwtSegments)
@@ -114,7 +126,7 @@ func VerifyJWT(
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		// 验证签名算法是否为 ECDSA
 		if _, ok := token.Method.(*jwt.SigningMethodECDSA); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v, expected ECDSA", token.Header["alg"])
+			return nil, fmt.Errorf("unexpected signing method: only ECDSA is supported")
 		}
 		return publicKey, nil
 	})
@@ -124,6 +136,34 @@ func VerifyJWT(
 	}
 
 	return token.Valid, nil
+}
+
+// IsExpired 检查 token 是否已过期
+//
+// 从 token 的 claims 中提取过期时间并检查是否已过期。
+// 如果 token 没有设置过期时间 (exp claim)，则认为不会过期。
+//
+// 参数：
+//   token - 已解析的 JWT token 对象
+//
+// 返回：
+//   bool - true 表示已过期，false 表示未过期或没有设置过期时间
+//   error - 解析失败时返回错误
+func IsExpired(token *jwt.Token) (bool, error) {
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return false, fmt.Errorf("invalid claims type")
+	}
+
+	// 检查是否存在过期时间
+	exp, ok := claims["exp"].(float64)
+	if !ok {
+		// 没有设置过期时间，认为不会过期
+		return false, nil
+	}
+
+	// 检查是否已过期（使用当前时间）
+	return int64(exp) < time.Now().Unix(), nil
 }
 
 // GenerateES256 生成使用 ES256 算法 (ECDSA P-256 + SHA-256) 签名的 JWT token
@@ -159,6 +199,86 @@ func GenerateES256[T jwt.Claims](
 	}
 
 	return result, privateKey, nil
+}
+
+// SignES256 使用现有的 ES256 私钥对 claims 进行签名
+//
+// 使用提供的 P-256 ECDSA 私钥对 claims 进行签名，返回 JWT token 字符串。
+// 与 GenerateES256 不同，此函数使用你提供的密钥而不是生成新密钥。
+//
+// 参数：
+//   claims - JWT 声明，可以是任何实现 jwt.Claims 接口的类型
+//   privateKey - 你自己的 P-256 ECDSA 私钥
+//
+// 返回：
+//   string - 签名后的 JWT token 字符串
+//   error - 签名失败时返回错误
+//
+// 注意：
+//   - 你需要自己管理和保护私钥
+//   - 公钥可通过 privateKey.PublicKey 获取并用于验证
+func SignES256[T jwt.Claims](
+	claims T,
+	privateKey *ecdsa.PrivateKey,
+) (string, error) {
+
+	token := jwt.NewWithClaims(jwt.SigningMethodES256, claims)
+	result, err := token.SignedString(privateKey)
+	if err != nil {
+		return "", err
+	}
+
+	return result, nil
+}
+
+// SignES384 使用现有的 ES384 私钥对 claims 进行签名
+//
+// 使用提供的 P-384 ECDSA 私钥对 claims 进行签名，返回 JWT token 字符串。
+//
+// 参数：
+//   claims - JWT 声明，可以是任何实现 jwt.Claims 接口的类型
+//   privateKey - 你自己的 P-384 ECDSA 私钥
+//
+// 返回：
+//   string - 签名后的 JWT token 字符串
+//   error - 签名失败时返回错误
+func SignES384[T jwt.Claims](
+	claims T,
+	privateKey *ecdsa.PrivateKey,
+) (string, error) {
+
+	token := jwt.NewWithClaims(jwt.SigningMethodES384, claims)
+	result, err := token.SignedString(privateKey)
+	if err != nil {
+		return "", err
+	}
+
+	return result, nil
+}
+
+// SignES512 使用现有的 ES512 私钥对 claims 进行签名
+//
+// 使用提供的 P-521 ECDSA 私钥对 claims 进行签名，返回 JWT token 字符串。
+//
+// 参数：
+//   claims - JWT 声明，可以是任何实现 jwt.Claims 接口的类型
+//   privateKey - 你自己的 P-521 ECDSA 私钥
+//
+// 返回：
+//   string - 签名后的 JWT token 字符串
+//   error - 签名失败时返回错误
+func SignES512[T jwt.Claims](
+	claims T,
+	privateKey *ecdsa.PrivateKey,
+) (string, error) {
+
+	token := jwt.NewWithClaims(jwt.SigningMethodES512, claims)
+	result, err := token.SignedString(privateKey)
+	if err != nil {
+		return "", err
+	}
+
+	return result, nil
 }
 
 // GenerateES384 生成使用 ES384 算法 (ECDSA P-384 + SHA-384) 签名的 JWT token
