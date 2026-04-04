@@ -1,93 +1,349 @@
 package jwt
 
 import (
+	"crypto/elliptic"
+	"encoding/base64"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
+// CustomClaims 自定义 Claims 类型，用于测试泛型支持
+type CustomClaims struct {
+	Name  string `json:"name"`
+	Email string `json:"email"`
+	jwt.RegisteredClaims
+}
+
 func TestGenerateES256(t *testing.T) {
-	claims := jwt.MapClaims{
-		"iss": "test-issuer",
-		"sub": "user123",
-		"exp": 9999999999,
-	}
+	t.Run("MapClaims", func(t *testing.T) {
+		claims := jwt.MapClaims{
+			"iss": "test-issuer",
+			"sub": "user123",
+			"exp": 9999999999,
+		}
 
-	token, privateKey, err := GenerateES256(claims)
-	if err != nil {
-		t.Fatalf("GenerateES256() error = %v", err)
-	}
+		token, privateKey, err := GenerateES256(claims)
+		if err != nil {
+			t.Fatalf("GenerateES256() error = %v", err)
+		}
 
-	if token == "" {
-		t.Error("GenerateES256() returned empty token")
-	}
+		if token == "" {
+			t.Error("GenerateES256() returned empty token")
+		}
 
-	if privateKey == nil {
-		t.Error("GenerateES256() returned nil private key")
-	}
+		if privateKey == nil {
+			t.Error("GenerateES256() returned nil private key")
+		}
+
+		// 验证私钥曲线类型
+		if !elliptic.P256().IsOnCurve(privateKey.PublicKey.X, privateKey.PublicKey.Y) {
+			t.Error("GenerateES256() generated key is not on P-256 curve")
+		}
+	})
+
+	t.Run("CustomClaims", func(t *testing.T) {
+		claims := CustomClaims{
+			Name:  "John Doe",
+			Email: "john@example.com",
+			RegisteredClaims: jwt.RegisteredClaims{
+				Issuer:    "test-app",
+				Subject:   "user123",
+				ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
+			},
+		}
+
+		token, privateKey, err := GenerateES256(claims)
+		if err != nil {
+			t.Fatalf("GenerateES256() with CustomClaims error = %v", err)
+		}
+
+		if token == "" {
+			t.Error("GenerateES256() returned empty token")
+		}
+
+		if privateKey == nil {
+			t.Error("GenerateES256() returned nil private key")
+		}
+
+		// 验证生成的 token 可以被解析
+		parsedToken, err := ParseUnverified(token)
+		if err != nil {
+			t.Fatalf("ParseUnverified() error = %v", err)
+		}
+
+		mapClaims, ok := parsedToken.Claims.(jwt.MapClaims)
+		if !ok {
+			t.Fatal("Parsed claims is not MapClaims")
+		}
+
+		if mapClaims["name"] != "John Doe" {
+			t.Errorf("name = %v, want John Doe", mapClaims["name"])
+		}
+
+		if mapClaims["email"] != "john@example.com" {
+			t.Errorf("email = %v, want john@example.com", mapClaims["email"])
+		}
+	})
 }
 
 func TestGenerateES384(t *testing.T) {
-	claims := jwt.MapClaims{
-		"iss": "test-issuer",
-		"sub": "user456",
-	}
+	t.Run("MapClaims", func(t *testing.T) {
+		claims := jwt.MapClaims{
+			"iss": "test-issuer",
+			"sub": "user456",
+		}
 
-	token, privateKey, err := GenerateES384(claims)
-	if err != nil {
-		t.Fatalf("GenerateES384() error = %v", err)
-	}
+		token, privateKey, err := GenerateES384(claims)
+		if err != nil {
+			t.Fatalf("GenerateES384() error = %v", err)
+		}
 
-	if token == "" {
-		t.Error("GenerateES384() returned empty token")
-	}
+		if token == "" {
+			t.Error("GenerateES384() returned empty token")
+		}
 
-	if privateKey == nil {
-		t.Error("GenerateES384() returned nil private key")
-	}
+		if privateKey == nil {
+			t.Error("GenerateES384() returned nil private key")
+		}
+
+		// 验证私钥曲线类型
+		if !elliptic.P384().IsOnCurve(privateKey.PublicKey.X, privateKey.PublicKey.Y) {
+			t.Error("GenerateES384() generated key is not on P-384 curve")
+		}
+	})
+
+	t.Run("CustomClaims", func(t *testing.T) {
+		claims := CustomClaims{
+			Name:  "Jane Doe",
+			Email: "jane@example.com",
+			RegisteredClaims: jwt.RegisteredClaims{
+				Issuer:    "test-app",
+				ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
+			},
+		}
+
+		token, privateKey, err := GenerateES384(claims)
+		if err != nil {
+			t.Fatalf("GenerateES384() with CustomClaims error = %v", err)
+		}
+
+		if token == "" {
+			t.Error("GenerateES384() returned empty token")
+		}
+
+		if privateKey == nil {
+			t.Error("GenerateES384() returned nil private key")
+		}
+	})
 }
 
 func TestGenerateES512(t *testing.T) {
-	claims := jwt.MapClaims{
-		"iss": "test-issuer",
-		"sub": "user789",
-	}
+	t.Run("MapClaims", func(t *testing.T) {
+		claims := jwt.MapClaims{
+			"iss": "test-issuer",
+			"sub": "user789",
+		}
 
-	token, privateKey, err := GenerateES512(claims)
-	if err != nil {
-		t.Fatalf("GenerateES512() error = %v", err)
-	}
+		token, privateKey, err := GenerateES512(claims)
+		if err != nil {
+			t.Fatalf("GenerateES512() error = %v", err)
+		}
 
-	if token == "" {
-		t.Error("GenerateES512() returned empty token")
-	}
+		if token == "" {
+			t.Error("GenerateES512() returned empty token")
+		}
 
-	if privateKey == nil {
-		t.Error("GenerateES512() returned nil private key")
-	}
+		if privateKey == nil {
+			t.Error("GenerateES512() returned nil private key")
+		}
+
+		// 验证私钥曲线类型
+		if !elliptic.P521().IsOnCurve(privateKey.PublicKey.X, privateKey.PublicKey.Y) {
+			t.Error("GenerateES512() generated key is not on P-521 curve")
+		}
+	})
+
+	t.Run("CustomClaims", func(t *testing.T) {
+		claims := CustomClaims{
+			Name:  "Bob Smith",
+			Email: "bob@example.com",
+			RegisteredClaims: jwt.RegisteredClaims{
+				Issuer:    "test-app",
+				ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
+			},
+		}
+
+		token, privateKey, err := GenerateES512(claims)
+		if err != nil {
+			t.Fatalf("GenerateES512() with CustomClaims error = %v", err)
+		}
+
+		if token == "" {
+			t.Error("GenerateES512() returned empty token")
+		}
+
+		if privateKey == nil {
+			t.Error("GenerateES512() returned nil private key")
+		}
+	})
 }
 
 func TestVerifyJWT(t *testing.T) {
-	claims := jwt.MapClaims{
-		"iss": "test-issuer",
-		"sub": "user123",
-		"exp": 9999999999,
-	}
+	t.Run("ES256 valid token", func(t *testing.T) {
+		claims := jwt.MapClaims{
+			"iss": "test-issuer",
+			"sub": "user123",
+			"exp": 9999999999,
+		}
 
-	token, privateKey, err := GenerateES256(claims)
-	if err != nil {
-		t.Fatalf("GenerateES256() error = %v", err)
-	}
+		token, privateKey, err := GenerateES256(claims)
+		if err != nil {
+			t.Fatalf("GenerateES256() error = %v", err)
+		}
 
-	// Verify with correct public key
-	valid, err := VerifyJWT(token, &privateKey.PublicKey)
-	if err != nil {
-		t.Fatalf("VerifyJWT() error = %v", err)
-	}
+		// Verify with correct public key
+		valid, err := VerifyJWT(token, &privateKey.PublicKey)
+		if err != nil {
+			t.Fatalf("VerifyJWT() error = %v", err)
+		}
 
-	if !valid {
-		t.Error("VerifyJWT() returned false for valid token")
-	}
+		if !valid {
+			t.Error("VerifyJWT() returned false for valid token")
+		}
+	})
+
+	t.Run("ES384 valid token", func(t *testing.T) {
+		claims := jwt.MapClaims{
+			"iss": "test-issuer",
+			"sub": "user456",
+			"exp": 9999999999,
+		}
+
+		token, privateKey, err := GenerateES384(claims)
+		if err != nil {
+			t.Fatalf("GenerateES384() error = %v", err)
+		}
+
+		valid, err := VerifyJWT(token, &privateKey.PublicKey)
+		if err != nil {
+			t.Fatalf("VerifyJWT() error = %v", err)
+		}
+
+		if !valid {
+			t.Error("VerifyJWT() returned false for valid ES384 token")
+		}
+	})
+
+	t.Run("ES512 valid token", func(t *testing.T) {
+		claims := jwt.MapClaims{
+			"iss": "test-issuer",
+			"sub": "user789",
+			"exp": 9999999999,
+		}
+
+		token, privateKey, err := GenerateES512(claims)
+		if err != nil {
+			t.Fatalf("GenerateES512() error = %v", err)
+		}
+
+		valid, err := VerifyJWT(token, &privateKey.PublicKey)
+		if err != nil {
+			t.Fatalf("VerifyJWT() error = %v", err)
+		}
+
+		if !valid {
+			t.Error("VerifyJWT() returned false for valid ES512 token")
+		}
+	})
+
+	t.Run("Expired token", func(t *testing.T) {
+		claims := jwt.MapClaims{
+			"iss": "test-issuer",
+			"sub": "user123",
+			"exp": float64(time.Now().Add(-1 * time.Hour).Unix()), // 已过期
+		}
+
+		token, privateKey, err := GenerateES256(claims)
+		if err != nil {
+			t.Fatalf("GenerateES256() error = %v", err)
+		}
+
+		// Verify expired token - should return false or error
+		valid, err := VerifyJWT(token, &privateKey.PublicKey)
+		if err != nil {
+			// golang-jwt 返回错误表示 token 过期
+			if !strings.Contains(err.Error(), "expired") {
+				t.Errorf("Expected expired error, got: %v", err)
+			}
+		}
+		if valid {
+			t.Error("VerifyJWT() returned true for expired token")
+		}
+	})
+
+	t.Run("Invalid token format", func(t *testing.T) {
+		tests := []struct {
+			name  string
+			token string
+		}{
+			{"Empty", ""},
+			{"Invalid", "not.a.jwt.token"},
+			{"Missing parts", "header.payload"},
+			{"Only header", "abc.def"},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				key, _ := GenerateECDSAKeyP256()
+				valid, err := VerifyJWT(tt.token, &key.PublicKey)
+				if err == nil {
+					t.Error("VerifyJWT() should return error for invalid token format")
+				}
+				if valid {
+					t.Error("VerifyJWT() returned true for invalid token")
+				}
+			})
+		}
+	})
+
+	t.Run("Non-ECDSA algorithm", func(t *testing.T) {
+		// 创建一个使用 HMAC 算法的 token
+		hmacToken := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.4Adcj3mYcZgACderzPfBqyfgqE9k7Tqf_XhGjyqjXOA"
+
+		key, _ := GenerateECDSAKeyP256()
+		valid, err := VerifyJWT(hmacToken, &key.PublicKey)
+
+		if err == nil {
+			t.Error("VerifyJWT() should return error for HMAC token")
+		}
+		if valid {
+			t.Error("VerifyJWT() returned true for HMAC token")
+		}
+	})
+
+	t.Run("Nil public key", func(t *testing.T) {
+		claims := jwt.MapClaims{
+			"iss": "test-issuer",
+			"exp": 9999999999,
+		}
+
+		token, _, err := GenerateES256(claims)
+		if err != nil {
+			t.Fatalf("GenerateES256() error = %v", err)
+		}
+
+		// 使用 nil 公钥应该会 panic 或返回错误
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("VerifyJWT() should panic with nil public key")
+			}
+		}()
+
+		_, _ = VerifyJWT(token, nil)
+	})
 }
 
 func TestVerifyJWTInvalidSignature(t *testing.T) {
@@ -119,45 +375,136 @@ func TestVerifyJWTInvalidSignature(t *testing.T) {
 }
 
 func TestParseUnverified(t *testing.T) {
-	claims := jwt.MapClaims{
-		"iss":   "my-app",
-		"sub":   "user123",
-		"custom": "data",
-		"exp":   9999999999,
-	}
+	t.Run("Parse ES256 token", func(t *testing.T) {
+		claims := jwt.MapClaims{
+			"iss":    "my-app",
+			"sub":    "user123",
+			"custom": "data",
+			"exp":    9999999999,
+		}
 
-	token, _, err := GenerateES256(claims)
-	if err != nil {
-		t.Fatalf("GenerateES256() error = %v", err)
-	}
+		token, _, err := GenerateES256(claims)
+		if err != nil {
+			t.Fatalf("GenerateES256() error = %v", err)
+		}
 
-	// Parse without verification
-	parsedToken, err := ParseUnverified(token)
-	if err != nil {
-		t.Fatalf("ParseUnverified() error = %v", err)
-	}
+		// Parse without verification
+		parsedToken, err := ParseUnverified(token)
+		if err != nil {
+			t.Fatalf("ParseUnverified() error = %v", err)
+		}
 
-	if parsedToken.Raw != token {
-		t.Error("ParseUnverified() returned different raw token")
-	}
+		if parsedToken.Raw != token {
+			t.Error("ParseUnverified() returned different raw token")
+		}
 
-	// Check claims
-	mapClaims, ok := parsedToken.Claims.(jwt.MapClaims)
-	if !ok {
-		t.Fatal("ParseUnverified() claims is not MapClaims")
-	}
+		// Check claims
+		mapClaims, ok := parsedToken.Claims.(jwt.MapClaims)
+		if !ok {
+			t.Fatal("ParseUnverified() claims is not MapClaims")
+		}
 
-	if mapClaims["iss"] != "my-app" {
-		t.Errorf("iss = %v, want my-app", mapClaims["iss"])
-	}
+		if mapClaims["iss"] != "my-app" {
+			t.Errorf("iss = %v, want my-app", mapClaims["iss"])
+		}
 
-	if mapClaims["sub"] != "user123" {
-		t.Errorf("sub = %v, want user123", mapClaims["sub"])
-	}
+		if mapClaims["sub"] != "user123" {
+			t.Errorf("sub = %v, want user123", mapClaims["sub"])
+		}
 
-	if mapClaims["custom"] != "data" {
-		t.Errorf("custom = %v, want data", mapClaims["custom"])
-	}
+		if mapClaims["custom"] != "data" {
+			t.Errorf("custom = %v, want data", mapClaims["custom"])
+		}
+
+		// 检查 Token 字段完整性
+		if parsedToken.Header == nil {
+			t.Error("ParseUnverified() returned nil Header")
+		}
+		if parsedToken.Method == nil {
+			t.Error("ParseUnverified() returned nil Method")
+		}
+		if parsedToken.Signature == nil {
+			t.Error("ParseUnverified() returned nil Signature")
+		}
+	})
+
+	t.Run("Parse ES384 token", func(t *testing.T) {
+		claims := jwt.MapClaims{
+			"iss": "my-app",
+			"sub": "user456",
+		}
+
+		token, _, err := GenerateES384(claims)
+		if err != nil {
+			t.Fatalf("GenerateES384() error = %v", err)
+		}
+
+		parsedToken, err := ParseUnverified(token)
+		if err != nil {
+			t.Fatalf("ParseUnverified() error = %v", err)
+		}
+
+		// 验证算法字段
+		if parsedToken.Header["alg"] != "ES384" {
+			t.Errorf("alg = %v, want ES384", parsedToken.Header["alg"])
+		}
+	})
+
+	t.Run("Parse ES512 token", func(t *testing.T) {
+		claims := jwt.MapClaims{
+			"iss": "my-app",
+			"sub": "user789",
+		}
+
+		token, _, err := GenerateES512(claims)
+		if err != nil {
+			t.Fatalf("GenerateES512() error = %v", err)
+		}
+
+		parsedToken, err := ParseUnverified(token)
+		if err != nil {
+			t.Fatalf("ParseUnverified() error = %v", err)
+		}
+
+		// 验证算法字段
+		if parsedToken.Header["alg"] != "ES512" {
+			t.Errorf("alg = %v, want ES512", parsedToken.Header["alg"])
+		}
+	})
+
+	t.Run("Missing alg field", func(t *testing.T) {
+		// 构造一个缺少 alg 字段的 token
+		header := `{"typ":"JWT"}`
+		claims := `{"sub":"user"}`
+		signature := "signature"
+
+		brokenToken := encodeBase64URL(header) + "." + encodeBase64URL(claims) + "." + signature
+
+		_, err := ParseUnverified(brokenToken)
+		if err == nil {
+			t.Error("ParseUnverified() should return error for missing alg field")
+		}
+		if !strings.Contains(err.Error(), "alg") {
+			t.Errorf("Error should mention alg field, got: %v", err)
+		}
+	})
+
+	t.Run("Unsupported algorithm", func(t *testing.T) {
+		// 构造一个使用不支持的算法的 token
+		header := `{"typ":"JWT","alg":"UNKNOWN"}`
+		claims := `{"sub":"user"}`
+		signature := "signature"
+
+		brokenToken := encodeBase64URL(header) + "." + encodeBase64URL(claims) + "." + signature
+
+		_, err := ParseUnverified(brokenToken)
+		if err == nil {
+			t.Error("ParseUnverified() should return error for unsupported algorithm")
+		}
+		if !strings.Contains(err.Error(), "unsupported") {
+			t.Errorf("Error should mention unsupported, got: %v", err)
+		}
+	})
 }
 
 func TestParseUnverifiedInvalidToken(t *testing.T) {
@@ -224,4 +571,12 @@ func TestParseUnverifiedThenVerify(t *testing.T) {
 	if !valid {
 		t.Error("VerifyJWT() returned false for valid token")
 	}
+}
+
+// Helper function to encode to base64 URL without padding
+func encodeBase64URL(data string) string {
+	encoded := base64.StdEncoding.EncodeToString([]byte(data))
+	encoded = strings.ReplaceAll(encoded, "+", "-")
+	encoded = strings.ReplaceAll(encoded, "/", "_")
+	return strings.TrimRight(encoded, "=")
 }
